@@ -1,0 +1,6 @@
+pydbml==1.2.1
+soda-core-snowflake==3.5.5
+pyyaml
+snowflake-connector-python
+cryptography
+requests
