@@ -110,13 +110,7 @@ def read_text_file(path: str, strip: bool = True) -> str:
     logger.info("Fichier texte lu : %s", file_path)
     return content
 
-def load_dbml_object(path: str):
-    """Charge et parse un fichier DBML."""
-    from pydbml import PyDBML
-    dbml_path = Path(path)
-    if not dbml_path.exists():
-        raise FileNotFoundError(f"Fichier DBML introuvable : {path}")
-    return PyDBML(dbml_path)
+
 # ---------------------------------------------------------------------------
 # CHARGEMENT DE LA CLÉ PRIVÉE SNOWFLAKE
 # ---------------------------------------------------------------------------

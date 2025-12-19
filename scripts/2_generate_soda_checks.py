@@ -117,16 +117,42 @@ def parse_integrity_ref(description: str) -> Optional[Tuple[str, str]]:
 
 
 def dataset_name_from_table(table_cible: str) -> str:
-    """Retourne le nom de la table tel quel (en majuscules)."""
+    """
+    TST_TABLE_CIBLE = 'PRODUIT.T_PRODUIT'
+    => dataset Soda = 'SCH_REF_PRODUIT.T_PRODUIT'
+    (schéma hardcodé SCH_REF_<SCHEMA> ici).
+    """
     if not table_cible:
         return ""
-    return table_cible.strip().upper()
+    table_cible = table_cible.strip()
+    if "." not in table_cible:
+        return f"SCH_REF_{table_cible.upper()}"
+    schema, table = table_cible.split(".", 1)
+    schema_up = schema.strip().upper()
+    table_up = table.strip().upper()
+    if schema_up.startswith("SCH_REF_"):
+        return f"{schema_up}.{table_up}"
+    return f"SCH_REF_{schema_up}.{table_up}"
+
 
 def ref_dataset_name_from_table(ref_table: str) -> str:
-    """Retourne le nom de la table de référence tel quel."""
-    if not ref_table:
-        return ""
-    return ref_table.strip().upper()
+    """
+    Transforme une table logique 'SCHEMA.T_TABLE' en table physique 'SCH_REF_SCHEMA.T_TABLE'.
+
+    Exemple :
+      'PERSONNE.T_ORGANISATION' -> 'SCH_REF_PERSONNE.T_ORGANISATION'
+      'LOV.T_T_PROD'            -> 'SCH_REF_LOV.T_T_PROD'
+    """
+    if not ref_table or "." not in ref_table:
+        return ref_table or ""
+
+    schema, table = ref_table.split(".", 1)
+    schema_up = schema.strip().upper()
+    table_up = table.strip().upper()
+
+    if schema_up.startswith("SCH_REF_"):
+        return f"{schema_up}.{table_up}"
+    return f"SCH_REF_{schema_up}.{table_up}"
 
 
 # ---------------------------------------------------------------------------
