@@ -29,7 +29,7 @@ DEFAULT_VALIDE_DE = os.getenv("QDD_DEFAULT_VALIDE_DE", "1900-01-01")
 DEFAULT_VALIDE_JUSQUA = os.getenv("QDD_DEFAULT_VALIDE_JUSQUA", "2099-12-31")
 
 # Fichier DBML 
-DBML_PATH = os.getenv("DBML_PATH", "dbml/framework_qdd.dbml")
+DBML_PATH = os.getenv("DBML_PATH", "dbml/customer.dbml")
 
 # manifest.yml
 MANIFEST_PATH = os.getenv("MANIFEST_PATH", "manifest.yml")
