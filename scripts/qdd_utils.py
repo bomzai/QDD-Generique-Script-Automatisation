@@ -167,8 +167,8 @@ def connect_snowflake_from_env(
     private_key = load_private_key(pk_path, passphrase=os.getenv("PRIVATE_KEY_PASSPHRASE"))
     snowflake_account = env(account_env, required=True)
 
-    if ".privatelink" not in snowflake_account:
-        snowflake_account = snowflake_account + ".privatelink"
+    # if ".privatelink" not in snowflake_account:
+    #     snowflake_account = snowflake_account + ".privatelink"
 
     connect_args = {
         "user": env(user_env, required=True),

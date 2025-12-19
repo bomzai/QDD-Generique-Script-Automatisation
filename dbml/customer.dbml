@@ -1,40 +1,43 @@
+// Définition du projet
 Project CUSTOMER {
-  name: "Customer Data Model"
-  version: "1"
+    name: "Customer Data Model"
+    version: "1"
+    Note: 'Customer Data Model - Version 1'
 }
 
-Table CUSTOMER_SCHEMA.CUSTOMER [headercolor: #34db95ff] {
-    C_CUSTKEY NUMBER [pk, note: "Customer primary key"]
-    C_NAME STRING [note: "Customer name"]
-    C_ADDRESS STRING [note: "Customer address"]
-    C_NATIONKEY NUMBER [ref: > NATION.N_NATIONKEY, note: "Nation key"]
-    C_PHONE STRING [note: "Customer phone number"]
-    C_ACCTBAL NUMBER [note: "Account balance"]
-    C_MKTSEGMENT STRING [note: "Market segment"]
-    C_COMMENT STRING [note: "Free text comment"]
+// Définition de la table
+Table CUSTOMER_SCHEMA.CUSTOMER [headercolor: #34db95] {
+    C_CUSTKEY int [pk, note: 'Customer primary key']
+    C_NAME varchar(25) [note: 'Customer name']
+    C_ADDRESS varchar(150) [note: 'Customer address']
+    C_NATIONKEY int [ref: > CUSTOMER_SCHEMA.NATION.N_NATIONKEY, note: 'Nation key']
+    C_PHONE varchar(15) [note: 'Customer phone number']
+    C_ACCTBAL decimal(12,2) [note: 'Account balance']
+    C_MKTSEGMENT varchar(10) [note: 'Market segment']
+    C_COMMENT varchar(117) [note: 'Free text comment']
 
-    Note: "Customer data as defined by TPC-H"
+    Note: 'Customer data as defined by TPC-H'
 }
 
-Table CUSTOMER_SCHEMA.NATION [headercolor: #34db95ff] {
-    N_NATIONKEY NUMBER [pk, note: "Nation primary key"]
-    N_NAME STRING [note: "Nation name"]
-    N_REGIONKEY NUMBER [note: "Region key"]
-    N_COMMENT STRING [note: "Free text comment"]
+Table CUSTOMER_SCHEMA.NATION [headercolor: #34db95] {
+    N_NATIONKEY int [pk, note: 'Nation primary key']
+    N_NAME varchar(25) [note: 'Nation name']
+    N_REGIONKEY int [note: 'Region key']
+    N_COMMENT varchar(152) [note: 'Free text comment']
 
-    Note: "Nation data as defined by TPC-H"
+    Note: 'Nation data as defined by TPC-H'
 }
 
-Table CUSTOMER_SCHEMA.ORDERS [headercolor: #34db95ff] {
-    O_ORDERKEY NUMBER [pk, note: "Order primary key"]
-    O_CUSTKEY NUMBER [ref: > CUSTOMER.C_CUSTKEY, note: "Customer key"]
-    O_ORDERSTATUS STRING [note: "Order status"]
-    O_TOTALPRICE NUMBER [note: "Total order price"]
-    O_ORDERDATE DATE [note: "Order date"]
-    O_ORDERPRIORITY STRING [note: "Order priority"]
-    O_CLERK STRING [note: "Clerk identifier"]
-    O_SHIPPRIORITY NUMBER [note: "Shipping priority"]
-    O_COMMENT STRING [note: "Free text comment"]
+Table CUSTOMER_SCHEMA.ORDERS [headercolor: #34db95] {
+    O_ORDERKEY int [pk, note: 'Order primary key']
+    O_CUSTKEY int [ref: > CUSTOMER_SCHEMA.CUSTOMER.C_CUSTKEY, note: 'Customer key']
+    O_ORDERSTATUS varchar(1) [note: 'Order status']
+    O_TOTALPRICE decimal(12,2) [note: 'Total order price']
+    O_ORDERDATE DATE [note: 'Order date']
+    O_ORDERPRIORITY varchar(15) [note: 'Order priority']
+    O_CLERK varchar(15) [note: 'Clerk identifier']
+    O_SHIPPRIORITY int [note: 'Shipping priority']
+    O_COMMENT varchar(79) [note: 'Free text comment']
 
-    Note: "Orders data as defined by TPC-H"
+    Note: 'Orders data as defined by TPC-H'
 }
