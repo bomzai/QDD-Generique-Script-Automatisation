@@ -1,0 +1,11 @@
+data_source snowflake:
+  type: snowflake
+  connection:
+    account: "${SNOWFLAKE_ACCOUNT}"
+    username: "${SNOWFLAKE_USER}"
+    private_key_path: ${PRIVATE_KEY_PATH}
+    role: "${SNOWFLAKE_ROLE}"
+    database: "${SNOWFLAKE_DATABASE}"
+    warehouse: "${SNOWFLAKE_WAREHOUSE}"
+    output_database: "${SNOWFLAKE_DATABASE}"
+    output_schema: "QDD"

@@ -1,0 +1,23 @@
+services:
+  qdd:
+    build: .
+    working_dir: /app
+
+    # 1) Monter le repo => tu vois dev-config.yml apparaître sur ta machine
+    volumes:
+      - .:/app
+
+      # 2) Monter la clé privée dans le container
+      - .\secrets\snowflake_key.p8:/run/secrets/snowflake_key.p8:ro
+
+    # 3) Injecter les variables d'env
+    env_file:
+      - .env.docker
+
+    command: >
+      sh -c "
+        python scripts/1_generate_testcases.py &&
+        python scripts/2_generate_soda_checks.py &&
+        python scripts/3_test_snowflake_connection.py &&
+        python scripts/4_generate_soda_config.py
+      "

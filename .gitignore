@@ -1,0 +1,13 @@
+# Secrets folder
+/secrets/
+
+# Environment files
+*.env.docker
+*.env.local
+
+# Python cache files
+__pycache__/
+*.pyc
+
+# Soda config file
+dev-config.yml
