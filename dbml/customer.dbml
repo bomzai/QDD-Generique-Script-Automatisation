@@ -3,11 +3,11 @@ Project CUSTOMER {
   version: "1"
 }
 
-Table CUSTOMER_SCHEMA.CUSTOMER [headercolor: #34db95ff] {
+Table CUSTOMER_SCHEMA.CUSTOMER [headercolor: #34db95] {
     C_CUSTKEY NUMBER [pk, note: "Customer primary key"]
     C_NAME STRING [note: "Customer name"]
     C_ADDRESS STRING [note: "Customer address"]
-    C_NATIONKEY NUMBER [ref: > NATION.N_NATIONKEY, note: "Nation key"]
+    C_NATIONKEY NUMBER [ref: > CUSTOMER_SCHEMA.NATION.N_NATIONKEY, note: "Nation key"]
     C_PHONE STRING [note: "Customer phone number"]
     C_ACCTBAL NUMBER [note: "Account balance"]
     C_MKTSEGMENT STRING [note: "Market segment"]
@@ -16,7 +16,7 @@ Table CUSTOMER_SCHEMA.CUSTOMER [headercolor: #34db95ff] {
     Note: "Customer data as defined by TPC-H"
 }
 
-Table CUSTOMER_SCHEMA.NATION [headercolor: #34db95ff] {
+Table CUSTOMER_SCHEMA.NATION [headercolor: #34db95] {
     N_NATIONKEY NUMBER [pk, note: "Nation primary key"]
     N_NAME STRING [note: "Nation name"]
     N_REGIONKEY NUMBER [note: "Region key"]
@@ -25,9 +25,9 @@ Table CUSTOMER_SCHEMA.NATION [headercolor: #34db95ff] {
     Note: "Nation data as defined by TPC-H"
 }
 
-Table CUSTOMER_SCHEMA.ORDERS [headercolor: #34db95ff] {
+Table CUSTOMER_SCHEMA.ORDERS [headercolor: #34db95] {
     O_ORDERKEY NUMBER [pk, note: "Order primary key"]
-    O_CUSTKEY NUMBER [ref: > CUSTOMER.C_CUSTKEY, note: "Customer key"]
+    O_CUSTKEY NUMBER [ref: > CUSTOMER_SCHEMA.CUSTOMER.C_CUSTKEY, note: "Customer key"]
     O_ORDERSTATUS STRING [note: "Order status"]
     O_TOTALPRICE NUMBER [note: "Total order price"]
     O_ORDERDATE DATE [note: "Order date"]

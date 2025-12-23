@@ -3,45 +3,42 @@
 
 import os
 import re
+import hashlib
 from datetime import datetime, date
 from pathlib import Path
 from typing import Dict, Any, List, Optional
+from qdd_utils import load_manifest, get_target_dbml_schema
+from qdd_utils import (
+    get_logger,
+    connect_snowflake_from_env,
+    classify_metric,
+    get_target_dbml_schema,
+    MANIFEST_PATH,
+    DBML_NAME,
+    DBML_PATH,
+    GITLAB_TOKEN_FILE,
+    SQL_TARGET_DIR, 
+    ensure_dbml_version,
+)
 
-from qdd_utils import get_logger, connect_snowflake_from_env
 from pydbml import PyDBML
-import yaml
 
 logger = get_logger("étape 1 : génerer les testcases")
-
 
 # ---------------------------------------------------------------------------
 # PARAMÈTRES QDD
 # ---------------------------------------------------------------------------
 # Génération des tests
-DEFAULT_SOURCE_CIBLE_ID = os.getenv("QDD_DEFAULT_SOURCE_CIBLE_ID", "1")
-DEFAULT_POIDS = float(os.getenv("QDD_DEFAULT_POIDS", "1.0"))
-DEFAULT_SEUIL_INF = float(os.getenv("QDD_DEFAULT_SEUIL_INF", "0.0"))
-DEFAULT_SEUIL_SUP = float(os.getenv("QDD_DEFAULT_SEUIL_SUP", "0.0"))
-DEFAULT_FREQ = os.getenv("QDD_DEFAULT_FREQ", "J")
+# ➜ Désormais initialisés en dur, puis surchargés par manifest.yml
+DEFAULT_SOURCE_CIBLE_ID = "1"
+DEFAULT_POIDS = 1.0
+DEFAULT_SEUIL_INF = 0.0
+DEFAULT_SEUIL_SUP = 0.0
+DEFAULT_FREQ = "J"
 
 # Validité
 DEFAULT_VALIDE_DE = os.getenv("QDD_DEFAULT_VALIDE_DE", "1900-01-01")
 DEFAULT_VALIDE_JUSQUA = os.getenv("QDD_DEFAULT_VALIDE_JUSQUA", "2099-12-31")
-
-# Fichier DBML 
-DBML_PATH = os.getenv("DBML_PATH", "dbml/customer.dbml")
-
-# manifest.yml
-MANIFEST_PATH = os.getenv("MANIFEST_PATH", "manifest.yml")
-
-# Fichier token GitLab
-GITLAB_TOKEN_FILE = os.getenv("GITLAB_TOKEN_FILE", "target/api-key")
-
-# Dossier cible pour les scripts SQL
-SQL_TARGET_DIR = os.getenv("SQL_TARGET_DIR", "target")
-
-# Contrôle du Push GitLab
-PUSH_TO_GITLAB = os.getenv("PUSH_TO_GITLAB", "FALSE").strip().upper() == "FALSE"
 
 # ---------------------------------------------------------------------------
 # UTILITAIRES DATES
@@ -52,7 +49,6 @@ def parse_date(s: str) -> date:
     Convertit une chaîne 'YYYY-MM-DD' en date.
     """
     return datetime.strptime(s, "%Y-%m-%d").date()
-
 
 
 def compute_default_dates() -> (date, date):
@@ -71,24 +67,6 @@ def compute_default_dates() -> (date, date):
 
     return d_de, d_jusqua
 
-# ---------------------------------------------------------------------------
-# CHARGEMENT DE LA CLÉ PRIVÉE
-# ---------------------------------------------------------------------------
-
-def load_private_key(path: str):
-    """
-    Charge la clé privée Snowflake au format PEM.
-    (Toujours présente, même si get_connection utilise désormais qdd_utils.)
-    """
-    if not path:
-        raise RuntimeError("PRIVATE_KEY_PATH non défini dans les variables d'environnement.")
-    if not os.path.exists(path):
-        raise FileNotFoundError(f"Clé privée introuvable : {path}")
-    with open(path, "rb") as f:
-        key_data = f.read()
-    private_key = serialization.load_pem_private_key(key_data, password=None)
-    logger.info(f"Clé privée chargée depuis {path}")
-    return private_key
 
 # ---------------------------------------------------------------------------
 # CONNEXION SNOWFLAKE via qdd_utils
@@ -108,21 +86,89 @@ def get_connection():
 # CHARGEMENT MANIFEST & DBML
 # ---------------------------------------------------------------------------
 
-def load_manifest(manifest_path: str) -> Dict[str, Any]:
+def apply_testcase_defaults_from_manifest(manifest: Dict[str, Any]) -> None:
     """
-    Charge le fichier manifest.yml et renvoie un dict.
+    Applique les valeurs par défaut des T_TESTCASE à partir du manifest.yml.
+
+    Section attendue :
+
+        defaults_testcases_values:
+          tst_poids: 1
+          tst_freq: "J"
+          tst_seuil_borne_inferieur: 0
+          tst_seuil_borne_superieur: 0
+          # optionnel :
+          # tst_source_cible_id: 1
+
+    Si une clé est absente, on conserve la valeur
+    déjà présente dans les constantes globales.
     """
-    if not os.path.exists(manifest_path):
-        raise FileNotFoundError(f"manifest.yml introuvable : {manifest_path}")
-    with open(manifest_path, "r", encoding="utf-8") as f:
-        data = yaml.safe_load(f) or {}
-    logger.info(f"manifest.yml chargé depuis {manifest_path}")
-    return data
+    global DEFAULT_SOURCE_CIBLE_ID, DEFAULT_POIDS, DEFAULT_SEUIL_INF, DEFAULT_SEUIL_SUP, DEFAULT_FREQ
+
+    defaults = manifest.get("defaults_testcases_values") or {}
+    if not isinstance(defaults, dict) or not defaults:
+        logger.warning(
+            "Section 'defaults_testcases_values' absente ou vide dans manifest.yml, "
+            "utilisation des valeurs codées en dur dans le script."
+        )
+        return
+
+    # Source cible (optionnelle)
+    if "tst_source_cible_id" in defaults and defaults["tst_source_cible_id"] is not None:
+        try:
+            DEFAULT_SOURCE_CIBLE_ID = str(int(defaults["tst_source_cible_id"]))
+        except (TypeError, ValueError):
+            logger.warning(
+                "Impossible de convertir defaults_testcases_values.tst_source_cible_id en int (%r), "
+                "valeur inchangée.",
+                defaults["tst_source_cible_id"],
+            )
+
+    # Poids
+    if "tst_poids" in defaults and defaults["tst_poids"] is not None:
+        try:
+            DEFAULT_POIDS = float(defaults["tst_poids"])
+        except (TypeError, ValueError):
+            logger.warning(
+                "Impossible de convertir defaults_testcases_values.tst_poids en float (%r), "
+                "valeur inchangée.",
+                defaults["tst_poids"],
+            )
+
+    # Seuils
+    if "tst_seuil_borne_inferieur" in defaults and defaults["tst_seuil_borne_inferieur"] is not None:
+        try:
+            DEFAULT_SEUIL_INF = float(defaults["tst_seuil_borne_inferieur"])
+        except (TypeError, ValueError):
+            logger.warning(
+                "Impossible de convertir defaults_testcases_values.tst_seuil_borne_inferieur en float (%r), "
+                "valeur inchangée.",
+                defaults["tst_seuil_borne_inferieur"],
+            )
+
+    if "tst_seuil_borne_superieur" in defaults and defaults["tst_seuil_borne_superieur"] is not None:
+        try:
+            DEFAULT_SEUIL_SUP = float(defaults["tst_seuil_borne_superieur"])
+        except (TypeError, ValueError):
+            logger.warning(
+                "Impossible de convertir defaults_testcases_values.tst_seuil_borne_superieur en float (%r), "
+                "valeur inchangée.",
+                defaults["tst_seuil_borne_superieur"],
+            )
+
+    # Fréquence
+    if "tst_freq" in defaults and defaults["tst_freq"] is not None:
+        DEFAULT_FREQ = str(defaults["tst_freq"])
+        if not DEFAULT_FREQ:
+            DEFAULT_FREQ = "J"
+            logger.warning(
+                "defaults_testcases_values.tst_freq est vide, utilisation de 'J' par défaut."
+            )
 
 
 def load_dbml(dbml_path: str) -> PyDBML:
     """
-    Charge le fichier DBML.
+    Charge le fichier DBML Produit.
     """
     if not os.path.exists(dbml_path):
         raise FileNotFoundError(f"Fichier DBML introuvable : {dbml_path}")
@@ -172,7 +218,7 @@ def get_schemachange_entry_from_manifest(manifest: Dict[str, Any]) -> Dict[str, 
 
 
 def get_dbml_entry_from_manifest(manifest: Dict[str, Any],
-                                 project_name: str = "framework_qdd") -> Dict[str, Any]:
+                                 project_name: str = "Customer") -> Dict[str, Any]:
     """
     Récupère l'entrée dbml[name=project_name] dans manifest.yml.
     """
@@ -186,23 +232,33 @@ def get_dbml_entry_from_manifest(manifest: Dict[str, Any],
 # OUTILS DBML : TABLES / COLONNES / FK
 # ---------------------------------------------------------------------------
 
-def is_target_table(table, target_name: str) -> bool:
+def is_ref_table(table) -> bool:
     """
-    Vérifie si la table appartient au projet cible (ex: FRAMEWORK_QDD).
+    Détermine si une table appartient au schéma logique ciblé.
+    Adapté pour CUSTOMER_SCHEMA.
     """
-    schema = getattr(table, "schema", None)
-    full_name = getattr(table, "full_name", None)
-    target_name = target_name.upper()
+    TARGET_DBML_SCHEMA = get_target_dbml_schema(MANIFEST_PATH, DBML_NAME)
+    
+    # On définit les schémas autorisés (le vôtre + le défaut)
+    allowed_targets = ["PRODUIT", "CUSTOMER_SCHEMA"]
+    if TARGET_DBML_SCHEMA:
+        allowed_targets.append(TARGET_DBML_SCHEMA.upper())
 
-    # Vérification par nom complet (ex: FRAMEWORK_QDD.CUSTOMER)
-    if full_name and full_name.upper().startswith(f"{target_name}."):
-        return True
+    schema = (getattr(table, "schema", "") or "").upper()
+    full_name = (getattr(table, "full_name", "") or "").upper()
+    name = (getattr(table, "name", "") or "").upper()
 
-    # Vérification par schéma explicite
-    if schema and schema.upper() == target_name:
-        return True
+    # Vérification si l'un des schémas autorisés est présent
+    for target in allowed_targets:
+        if schema == target:
+            return True
+        if full_name.startswith(target + "."):
+            return True
+        if name.startswith(target + "."):
+            return True
 
     return False
+
 
 
 def table_qualified_name(table) -> str:
@@ -283,71 +339,53 @@ def fk_targets(dbml: PyDBML, table, column):
     return results
 
 # ---------------------------------------------------------------------------
-# DBML VERSION
+# GÉNÉRATION D'ID DÉTERMINISTE (TST_IDF)
 # ---------------------------------------------------------------------------
 
-def ensure_dbml_version(conn,
-                        project_name: str,
-                        project_version: str,
-                        dbml_entry: Dict[str, Any]) -> int:
+def _norm(s: Any) -> str:
+    return (str(s) if s is not None else "").strip().upper()
+
+def _norm_table(schema: str, table: str) -> str:
+    t = _norm(table)
+    if "." in t:
+        return t
+    s = _norm(schema)
+    return f"{s}.{t}" if s else t
+
+def build_testcase_key(
+    *,
+    kind: str,
+    schema_name: str,
+    table_name: str,
+    champ_key: str,
+    metric_id: Any,
+    source_cible_id: Any,
+    dbml_version_id: Any,
+    ref_target: Optional[str] = None,
+) -> str:
     """
-    Vérifie l'existence d'une ligne T_DBML_VERSION correspondant à :
-      - DBV_PROJET_NAME
-      - DBV_PROJET_VERSION
-      - DBV_SCHEMA_CIBLE (si défini dans manifest dbml/schema)
-    Si elle n'existe pas, l'insère.
-    Retourne DBV_IDF.
+    Clé fonctionnelle stable du testcase.
+    - champ_key : version normalisée/triée si besoin (ex: PK composite)
+    - ref_target : utilisé pour distinguer les tests d'intégrité multiples sur une même colonne
     """
-    repo_url = dbml_entry.get("url", "") if dbml_entry else ""
-    repo_tag = dbml_entry.get("tag", "") if dbml_entry else ""
-    schema_cible = dbml_entry.get("schema", "") if dbml_entry else ""
+    parts = [
+        _norm(kind),
+        _norm_table(schema_name, table_name),
+        _norm(champ_key).replace(" ", ""),
+        str(metric_id),
+        str(source_cible_id),
+        str(dbml_version_id),
+    ]
+    if ref_target:
+        parts.append(_norm(ref_target))
+    return "|".join(parts)
 
-    select_sql = """
-        SELECT DBV_IDF
-        FROM T_DBML_VERSION
-        WHERE DBV_PROJET_NAME = %s
-          AND DBV_PROJET_VERSION = %s
-          AND COALESCE(DBV_SCHEMA_CIBLE, '') = COALESCE(%s, '')
-        ORDER BY DBV_DATE_CREATION DESC
-        LIMIT 1
+def build_tst_idf(key: str) -> str:
     """
-
-    insert_sql = """
-        INSERT INTO T_DBML_VERSION (
-            DBV_PROJET_NAME,
-            DBV_PROJET_VERSION,
-            DBV_REPO_URL,
-            DBV_REPO_TAG,
-            DBV_SCHEMA_CIBLE,
-            DBV_DATE_CREATION
-        )
-        VALUES (%s, %s, %s, %s, %s, CURRENT_TIMESTAMP())
+    ID stable, court, < 50 chars.
     """
-
-    cur = conn.cursor()
-    try:
-        cur.execute(select_sql, (project_name, project_version, schema_cible))
-        row = cur.fetchone()
-        if row:
-            dbv_id = row[0]
-            logger.info(f"DBML_VERSION déjà existant : DBV_IDF={dbv_id}")
-            return dbv_id
-
-        cur.execute(
-            insert_sql,
-            (project_name, project_version, repo_url, repo_tag, schema_cible),
-        )
-        conn.commit()
-
-        cur.execute(select_sql, (project_name, project_version, schema_cible))
-        row = cur.fetchone()
-        if not row:
-            raise RuntimeError("Impossible de retrouver la ligne T_DBML_VERSION après insertion.")
-        dbv_id = row[0]
-        logger.info(f"Nouvelle DBML_VERSION créée : DBV_IDF={dbv_id}")
-        return dbv_id
-    finally:
-        cur.close()
+    h = hashlib.sha256(key.encode("utf-8")).hexdigest()
+    return f"TC_{h[:32]}"
 
 # ---------------------------------------------------------------------------
 # CHARGEMENT DES MÉTRIQUES (T_METRIQUE)
@@ -359,6 +397,7 @@ def load_metrics(conn) -> List[Dict[str, Any]]:
       - 'completude'
       - 'unicite'
       - 'integrite'
+      - 'tracabilite'
       - 'autre'
     """
     metrics = []
@@ -368,7 +407,7 @@ def load_metrics(conn) -> List[Dict[str, Any]]:
             SELECT
                 MET_IDF,
                 MET_NOM_METRIQUE,
-                MET_CRITERE_QDD,
+                MET_TYPE,
                 MET_DESCRIPTION
             FROM T_METRIQUE
         """
@@ -380,17 +419,7 @@ def load_metrics(conn) -> List[Dict[str, Any]]:
             met_crit = row[2] or ""
             met_desc = row[3]
 
-            nom_lower = met_nom.strip().lower()
-            crit_upper = met_crit.strip().upper()
-
-            if "compl" in nom_lower or crit_upper == "EXH":
-                type_metr = "completude"
-            elif "unic" in nom_lower or crit_upper in ("UNI", "UNQ"):
-                type_metr = "unicite"
-            elif "intégr" in nom_lower or "integr" in nom_lower or crit_upper in ("INT", "FK", "REF"):
-                type_metr = "integrite"
-            else:
-                type_metr = "autre"
+            type_metr = classify_metric(met_nom, met_crit)
 
             metrics.append(
                 {
@@ -401,6 +430,7 @@ def load_metrics(conn) -> List[Dict[str, Any]]:
                     "type_metr": type_metr,
                 }
             )
+
 
         logger.info(f"{len(metrics)} métriques chargées.")
         return metrics
@@ -421,37 +451,39 @@ def get_metric_by_type(metrics: List[Dict[str, Any]], type_metr: str) -> Optiona
 # GÉNÉRATION DES TESTCASES
 # ---------------------------------------------------------------------------
 
-def format_test_name(critere: str, schema: str, table: str, champ: str, tst_id: int) -> str:
+def format_test_name(critere: str, schema: str, table: str, champ: str, tst_idf: str) -> str:
     """
     Construit un nom de test standard :
-      CRITERE-SCHEMA-TABLE-CHAMP-TSTID-0
+      CRITERE-SCHEMA-TABLE-CHAMP-<HASH8>-0
     """
     crit = critere.strip().upper()
     schema = schema.strip().upper()
     table = table.strip().upper()
     champ = champ.strip().upper().replace(",", "_")
-    base = f"{crit}-{schema}-{table}-{champ}-{tst_id}-0"
+    suffix = (tst_idf or "").replace("TC_", "")[:8].upper()
+
+    base = f"{crit}-{schema}-{table}-{champ}-{suffix}-0"
     if len(base) > 255:
         base = base[:255]
     return base
-
 
 def generate_testcases_from_dbml(
     dbml: PyDBML,
     metrics: List[Dict[str, Any]],
     dbml_version_id: int,
-    project_name: str,
     source_cible_id: int = 1
 ) -> List[Dict[str, Any]]:
     """
-    Génère les T_TESTCASE pour toutes les tables cibles trouvées dans le DBML :
+    Génère les T_TESTCASE pour toutes les tables PRODUIT trouvées dans le DBML :
       - Complétude (NOT NULL ou PK)
       - Unicité (PK)
       - Intégrité (FK -> table.ref)
+      - Traçabilité (description de colonne) : 1 test par colonne
     """
     metric_completude = get_metric_by_type(metrics, "completude")
     metric_unicite = get_metric_by_type(metrics, "unicite")
     metric_integrite = get_metric_by_type(metrics, "integrite")
+    metric_tracabilite = get_metric_by_type(metrics, "tracabilite")
 
     if not metric_completude:
         logger.warning("Aucune métrique de complétude trouvée.")
@@ -459,21 +491,21 @@ def generate_testcases_from_dbml(
         logger.warning("Aucune métrique d'unicité trouvée.")
     if not metric_integrite:
         logger.warning("Aucune métrique d'intégrité trouvée.")
+    if not metric_tracabilite:
+        logger.warning("Aucune métrique de traçabilité trouvée.")
 
     valid_de, valid_jusqua = compute_default_dates()
 
     testcases: List[Dict[str, Any]] = []
-    current_id = 1
 
     for table in dbml.tables:
-        # On utilise ici la nouvelle fonction de filtrage dynamique
-        if not is_target_table(table, project_name):
+        if not is_ref_table(table):
             continue
 
         table_name = table_qualified_name(table)
         schema_name = getattr(table, "schema", "") or ""
         schema_name = schema_name.upper()
-        logger.info(f"Table target détectée : {table_name}")
+        logger.info(f"Table PRODUIT détectée : {table_name}")
 
         columns = getattr(table, "columns", []) or []
         pk_columns = [col for col in columns if is_pk_column(col)]
@@ -488,27 +520,35 @@ def generate_testcases_from_dbml(
         # -------------------------------------------------------------------
         if metric_completude:
             for col_name in all_nn_for_completude:
-                tst_id = current_id
-                current_id += 1
+                key = build_testcase_key(
+                    kind="completude",
+                    schema_name=schema_name,
+                    table_name=table.name,
+                    champ_key=col_name,
+                    metric_id=metric_completude["id"],
+                    source_cible_id=source_cible_id,
+                    dbml_version_id=dbml_version_id,
+                )
+                tst_idf = build_tst_idf(key)
 
                 tst_nom = format_test_name(
                     metric_completude["crit"],
                     schema_name,
                     table.name,
                     col_name,
-                    tst_id,
+                    tst_idf,
                 )
                 desc = f"Test de complétude - Table {table_name}, Colonne {col_name}"
 
                 testcases.append(
                     {
-                        "TST_IDF": tst_id,
+                        "TST_IDF": tst_idf,
                         "TST_NOM_TEST": tst_nom,
                         "TST_SOURCE_CIBLE_ID": source_cible_id,
                         "TST_TABLE_CIBLE": table_name,
                         "TST_CHAMP_CIBLE": col_name,
-                        "TST_ID_METRIQUE": metric_completude["id"],
-                        "TST_TYPE": "AUTO",
+                        "TST_IDF_METRIQUE": metric_completude["id"],
+                        "TST_TYPE": "AUTO_GENERER",
                         "TST_DESCRIPTION": desc,
                         "TST_POIDS": DEFAULT_POIDS,
                         "TST_SEUIL_BORNE_INFERIEURE": DEFAULT_SEUIL_INF,
@@ -518,7 +558,7 @@ def generate_testcases_from_dbml(
                         "TST_DATE_CREATION": date.today(),
                         "TST_VALIDE_DE": valid_de,
                         "TST_VALIDE_JUSQUA": valid_jusqua,
-                        "TST_DBML_VERSION_ID": dbml_version_id,
+                        "TST_ID_DBML_VERSION": dbml_version_id,
                         "TST_KIND": "completude",
                     }
                 )
@@ -527,28 +567,40 @@ def generate_testcases_from_dbml(
         # Unicité (PK)
         # -------------------------------------------------------------------
         if metric_unicite and pk_columns:
-            champs = ",".join(col.name for col in pk_columns)
-            tst_id = current_id
-            current_id += 1
+            # Affichage inchangé pour le champ cible
+            champs_display = ",".join(col.name for col in pk_columns)
+            # Version triée uniquement pour stabiliser l'ID
+            champs_key = ",".join(sorted(col.name for col in pk_columns))
+
+            key = build_testcase_key(
+                kind="unicite",
+                schema_name=schema_name,
+                table_name=table.name,
+                champ_key=champs_key,
+                metric_id=metric_unicite["id"],
+                source_cible_id=source_cible_id,
+                dbml_version_id=dbml_version_id,
+            )
+            tst_idf = build_tst_idf(key)
 
             tst_nom = format_test_name(
                 metric_unicite["crit"],
                 schema_name,
                 table.name,
-                champs,
-                tst_id,
+                champs_display,
+                tst_idf,
             )
-            desc = f"Test d'unicité - Table {table_name}, Colonnes PK ({champs})"
+            desc = f"Test d'unicité - Table {table_name}, Colonnes PK ({champs_display})"
 
             testcases.append(
                 {
-                    "TST_IDF": tst_id,
+                    "TST_IDF": tst_idf,
                     "TST_NOM_TEST": tst_nom,
                     "TST_SOURCE_CIBLE_ID": source_cible_id,
                     "TST_TABLE_CIBLE": table_name,
-                    "TST_CHAMP_CIBLE": champs,
-                    "TST_ID_METRIQUE": metric_unicite["id"],
-                    "TST_TYPE": "AUTO",
+                    "TST_CHAMP_CIBLE": champs_display,
+                    "TST_IDF_METRIQUE": metric_unicite["id"],
+                    "TST_TYPE": "AUTO_GENERER",
                     "TST_DESCRIPTION": desc,
                     "TST_POIDS": DEFAULT_POIDS,
                     "TST_SEUIL_BORNE_INFERIEURE": DEFAULT_SEUIL_INF,
@@ -558,7 +610,7 @@ def generate_testcases_from_dbml(
                     "TST_DATE_CREATION": date.today(),
                     "TST_VALIDE_DE": valid_de,
                     "TST_VALIDE_JUSQUA": valid_jusqua,
-                    "TST_DBML_VERSION_ID": dbml_version_id,
+                    "TST_ID_DBML_VERSION": dbml_version_id,
                     "TST_KIND": "unicite",
                 }
             )
@@ -581,15 +633,27 @@ def generate_testcases_from_dbml(
                     ref_table_name = table_qualified_name(ref_table)
                     ref_col_name = ref_col.name if ref_col is not None else "UNKNOWN"
 
-                    tst_id = current_id
-                    current_id += 1
+                    # ref_target pour éviter collisions quand une même colonne a plusieurs FK
+                    ref_target = f"{ref_table_name}.{ref_col_name}"
+
+                    key = build_testcase_key(
+                        kind="integrite",
+                        schema_name=schema_name,
+                        table_name=table.name,
+                        champ_key=col_name,
+                        metric_id=metric_integrite["id"],
+                        source_cible_id=source_cible_id,
+                        dbml_version_id=dbml_version_id,
+                        ref_target=ref_target,
+                    )
+                    tst_idf = build_tst_idf(key)
 
                     tst_nom = format_test_name(
                         metric_integrite["crit"],
                         schema_name,
                         table.name,
                         col_name,
-                        tst_id,
+                        tst_idf,
                     )
                     desc = (
                         f"Test d'intégrité - Table {table_name}, Colonne {col_name} "
@@ -598,13 +662,13 @@ def generate_testcases_from_dbml(
 
                     testcases.append(
                         {
-                            "TST_IDF": tst_id,
+                            "TST_IDF": tst_idf,
                             "TST_NOM_TEST": tst_nom,
                             "TST_SOURCE_CIBLE_ID": source_cible_id,
                             "TST_TABLE_CIBLE": table_name,
                             "TST_CHAMP_CIBLE": col_name,
-                            "TST_ID_METRIQUE": metric_integrite["id"],
-                            "TST_TYPE": "AUTO",
+                            "TST_IDF_METRIQUE": metric_integrite["id"],
+                            "TST_TYPE": "AUTO_GENERER",
                             "TST_DESCRIPTION": desc,
                             "TST_POIDS": DEFAULT_POIDS,
                             "TST_SEUIL_BORNE_INFERIEURE": DEFAULT_SEUIL_INF,
@@ -614,10 +678,64 @@ def generate_testcases_from_dbml(
                             "TST_DATE_CREATION": date.today(),
                             "TST_VALIDE_DE": valid_de,
                             "TST_VALIDE_JUSQUA": valid_jusqua,
-                            "TST_DBML_VERSION_ID": dbml_version_id,
+                            "TST_ID_DBML_VERSION": dbml_version_id,
                             "TST_KIND": "integrite",
                         }
                     )
+
+        # -------------------------------------------------------------------
+        # Traçabilité (description de colonne) - 1 test par colonne
+        # -------------------------------------------------------------------
+        if metric_tracabilite:
+            for col in columns:
+                col_name = col.name
+
+                key = build_testcase_key(
+                    kind="tracabilite",
+                    schema_name=schema_name,
+                    table_name=table.name,
+                    champ_key=col_name,
+                    metric_id=metric_tracabilite["id"],
+                    source_cible_id=source_cible_id,
+                    dbml_version_id=dbml_version_id,
+                )
+                tst_idf = build_tst_idf(key)
+
+                tst_nom = format_test_name(
+                    metric_tracabilite["crit"],
+                    schema_name,
+                    table.name,
+                    col_name,
+                    tst_idf,
+                )
+
+                desc = (
+                    f"Test de traçabilité - Table {table_name}, "
+                    f"Colonne {col_name} (description renseignée dans Snowflake)"
+                )
+
+                testcases.append(
+                    {
+                        "TST_IDF": tst_idf,
+                        "TST_NOM_TEST": tst_nom,
+                        "TST_SOURCE_CIBLE_ID": source_cible_id,
+                        "TST_TABLE_CIBLE": table_name,
+                        "TST_CHAMP_CIBLE": col_name,
+                        "TST_IDF_METRIQUE": metric_tracabilite["id"],
+                        "TST_TYPE": "AUTO_GENERER",
+                        "TST_DESCRIPTION": desc,
+                        "TST_POIDS": DEFAULT_POIDS,
+                        "TST_SEUIL_BORNE_INFERIEURE": DEFAULT_SEUIL_INF,
+                        "TST_SEUIL_BORNE_SUPERIEURE": DEFAULT_SEUIL_SUP,
+                        "TST_FREQ": DEFAULT_FREQ,
+                        "TST_DATE_MISE_A_JOUR": None,
+                        "TST_DATE_CREATION": date.today(),
+                        "TST_VALIDE_DE": valid_de,
+                        "TST_VALIDE_JUSQUA": valid_jusqua,
+                        "TST_ID_DBML_VERSION": dbml_version_id,
+                        "TST_KIND": "tracabilite",
+                    }
+                )
 
     logger.info(f"{len(testcases)} testcases générés.")
     return testcases
@@ -649,11 +767,6 @@ def build_insert_sql(testcases: List[Dict[str, Any]]) -> str:
       SELECT ...
       WHERE NOT EXISTS ( ... )
     pour chaque testcase.
-
-    On aligne strictement :
-      - la liste des colonnes de l'INSERT
-      - la liste des valeurs du SELECT
-    pour éviter les erreurs "expected N but got M".
     """
     if not testcases:
         return "-- Aucun testcase généré.\n"
@@ -665,17 +778,8 @@ def build_insert_sql(testcases: List[Dict[str, Any]]) -> str:
     ]
 
     for tc in testcases:
-        # Condition d'unicité : on évite les doublons exacts
-        cond = (
-            "TST_TABLE_CIBLE = {table} "
-            "AND TST_CHAMP_CIBLE = {champ} "
-            "AND TST_ID_METRIQUE = {met} "
-            "AND COALESCE(TST_DESCRIPTION, '') = COALESCE({desc}, '')"
-        ).format(
-            table=sql_literal(tc["TST_TABLE_CIBLE"]),
-            champ=sql_literal(tc["TST_CHAMP_CIBLE"]),
-            met=sql_literal(tc["TST_ID_METRIQUE"]),
-            desc=sql_literal(tc["TST_DESCRIPTION"]),
+        cond = "TST_IDF = {idf}".format(
+            idf=sql_literal(tc["TST_IDF"]),
         )
 
         insert = f"""
@@ -685,7 +789,7 @@ INSERT INTO T_TESTCASE (
     TST_SOURCE_CIBLE_ID,
     TST_TABLE_CIBLE,
     TST_CHAMP_CIBLE,
-    TST_ID_METRIQUE,
+    TST_IDF_METRIQUE,
     TST_TYPE,
     TST_DESCRIPTION,
     TST_POIDS,
@@ -696,7 +800,7 @@ INSERT INTO T_TESTCASE (
     TST_DATE_CREATION,
     TST_VALIDE_DE,
     TST_VALIDE_JUSQUA,
-    TST_DBML_VERSION_ID
+    TST_ID_DBML_VERSION
 )
 SELECT
     {sql_literal(tc["TST_IDF"])},
@@ -704,7 +808,7 @@ SELECT
     {sql_literal(tc["TST_SOURCE_CIBLE_ID"])},
     {sql_literal(tc["TST_TABLE_CIBLE"])},
     {sql_literal(tc["TST_CHAMP_CIBLE"])},
-    {sql_literal(tc["TST_ID_METRIQUE"])},
+    {sql_literal(tc["TST_IDF_METRIQUE"])},
     {sql_literal(tc["TST_TYPE"])},
     {sql_literal(tc["TST_DESCRIPTION"])},
     {sql_literal(tc["TST_POIDS"])},
@@ -715,7 +819,7 @@ SELECT
     {sql_literal(tc["TST_DATE_CREATION"])},
     {sql_literal(tc["TST_VALIDE_DE"])},
     {sql_literal(tc["TST_VALIDE_JUSQUA"])},
-    {sql_literal(tc["TST_DBML_VERSION_ID"])}
+    {sql_literal(tc["TST_ID_DBML_VERSION"])}
 WHERE NOT EXISTS (
     SELECT 1
     FROM T_TESTCASE
@@ -752,27 +856,19 @@ def main():
 
     # Chargement manifest + DBML + meta projet
     manifest = load_manifest(MANIFEST_PATH)
+
+    # ➜ Application des valeurs par défaut depuis manifest.yml
+    apply_testcase_defaults_from_manifest(manifest)
+
     dbml_project_meta = extract_project_meta_from_dbml_file(DBML_PATH)
     dbml = load_dbml(DBML_PATH)
 
-    project_name = dbml_project_meta.get("project_name") or manifest.get("project", {}).get("name", "framework_qdd")
+    project_name = dbml_project_meta.get("project_name") or manifest.get("project", {}).get("name", "Produit")
     project_version = dbml_project_meta.get("project_version") or manifest.get("project", {}).get("version", "0.0.0")
 
     logger.info(f"Projet: {project_name}, version {project_version}")
 
     conn = get_connection()
-
-####### TEMP CODE #######
-    cur = conn.cursor()
-    cur.execute("SHOW TABLES")
-    rows = cur.fetchall()
-    cols = [c[0].lower() for c in cur.description]   # récupère les noms de colonnes
-    import pandas as pd
-    df = pd.DataFrame(rows, columns=cols)[["name", "schema_name"]]
-    print(df)
-####### END TEMP CODE #######
-
-
     try:
         # DBML_VERSION
         dbml_entry = get_dbml_entry_from_manifest(manifest, project_name=project_name)
@@ -787,7 +883,6 @@ def main():
             dbml=dbml,
             metrics=metrics,
             dbml_version_id=dbml_version_id,
-            project_name=project_name,
             source_cible_id=source_cible_id_int,
         )
 
