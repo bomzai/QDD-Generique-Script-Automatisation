@@ -8,5 +8,4 @@ services:
     env_file:
       - .env.docker
 
-    command: >
-      sh -c "chmod +x entrypoint.sh && ./entrypoint.sh"
+    command: sh -c "chmod +x /app/entrypoint.sh && /app/entrypoint.sh"
