@@ -182,7 +182,7 @@ def build_result_rows(data: Dict[str, Any]) -> List[Dict[str, Any]]:
 
         # ---- NOUVEAU : on récupère le TST_IDF (VARCHAR) depuis les attributes ----
         tst_id = extract_tst_id_from_check(chk)
-        if not tst_id:
+        #if not tst_id:
             # Si tu veux garder un fallback ultra-dégradé basé sur l'ancien parsing,
             # tu peux décommenter les lignes ci-dessous :
             #
@@ -191,8 +191,14 @@ def build_result_rows(data: Dict[str, Any]) -> List[Dict[str, Any]]:
             #     tst_id = str(numeric_id)
             # else:
             #     continue
+        #    continue
+        if not tst_id:
+            logger.error(
+        "Check sans TST_IDF ignoré (name=%s, outcome=%s)",
+            chk.get("name"),
+            chk.get("outcome"),
+            )
             continue
-
         # Valeur mesurée
         value = diagnostics.get("value")
         if value is None and "metrics" in diagnostics:

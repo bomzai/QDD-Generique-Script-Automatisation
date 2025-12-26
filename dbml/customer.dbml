@@ -1,5 +1,5 @@
 Project CUSTOMER {
-  name: "Customer Data Model"
+  name: "customer"
   version: "1"
 }
 

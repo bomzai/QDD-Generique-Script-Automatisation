@@ -97,7 +97,7 @@ def ref_dataset_name_from_table(ref_table: str) -> str:
 
 def get_target_referential_schema() -> str:
     """
-    Renvoie le schéma logique du référentiel ciblé (ex: PRODUIT).
+    Renvoie le schéma logique du référentiel ciblé .
     - d'abord via get_target_dbml_schema(manifest, dbml_name)
     - sinon DBML_NAME
     - sinon 'PRODUIT'
@@ -105,7 +105,7 @@ def get_target_referential_schema() -> str:
     schema = get_target_dbml_schema(MANIFEST_PATH, DBML_NAME)
     if schema:
         return schema.upper()
-    return (DBML_NAME or "PRODUIT").upper()
+    return (DBML_NAME or "CUSTOMER").upper()
 
 # -----------------------------------------------------------------------------
 # DBML VERSION (Commit 1)
@@ -164,7 +164,7 @@ def get_current_dbml_version_id(conn) -> int:
     manifest = load_manifest(str(MANIFEST_PATH))
     meta = extract_project_meta_from_dbml_file(DBML_PATH)
 
-    project_name = meta.get("project_name") or (manifest.get("project", {}) or {}).get("name") or (DBML_NAME or "Produit")
+    project_name = meta.get("project_name") or (manifest.get("project", {}) or {}).get("name") or (DBML_NAME or "Customer")
     project_version = meta.get("project_version") or (manifest.get("project", {}) or {}).get("version") or "0.0.0"
 
     dbml_entry = get_dbml_entry_from_manifest(manifest, project_name=str(project_name), fallback_name=DBML_NAME)
@@ -199,10 +199,30 @@ def load_testcases_with_metrics(conn) -> List[Dict[str, Any]]:
 
     Dédup : garde la ligne la plus récente par (nom + table + champ + métrique)
     """
-    target_schema = get_target_referential_schema()
+    #target_schema = get_target_referential_schema()
+    #like_pattern = f"{target_schema}.%"
+
+    #dbml_version_id = get_current_dbml_version_id(conn)
+
+    # Extraction des métadonnées REELLES du fichier DBML
+    meta = extract_project_meta_from_dbml_file(DBML_PATH)
+    
+    manifest = load_manifest(str(MANIFEST_PATH))
+    project_name = meta.get("project_name") or (manifest.get("project") or {}).get("name")
+    project_version = meta.get("project_version") or (manifest.get("project") or {}).get("version")
+    
+    # Récupération de l'entrée manifest pour avoir le schéma cible exact
+    dbml_entry = get_dbml_entry_from_manifest(manifest, project_name=str(project_name), fallback_name=DBML_NAME)
+    
+    # On utilise le schéma du manifest (ex: CUSTOMER_SCHEMA)
+
+    target_schema = dbml_entry.get("schema", "PRODUIT").upper()
     like_pattern = f"{target_schema}.%"
 
-    dbml_version_id = get_current_dbml_version_id(conn)
+    # 3. Récupération de l'ID de version (sera identique au Script 1 : ID=1)
+    dbml_version_id = ensure_dbml_version(conn, str(project_name), str(project_version), dbml_entry, logger=logger)
+
+    logger.info("Recherche tests pour Schéma: %s | DBV_IDF: %s", like_pattern, dbml_version_id)
 
     allow_legacy = os.getenv("QDD_ALLOW_LEGACY_NULL_DBML_VERSION", "true").strip().lower() in (
         "1", "true", "yes", "y"

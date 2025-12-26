@@ -4,6 +4,7 @@
 # Environment files
 *.env.docker
 *.env.local
+/.venv/
 
 # Python cache files
 __pycache__/

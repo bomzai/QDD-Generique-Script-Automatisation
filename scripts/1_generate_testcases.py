@@ -168,7 +168,7 @@ def apply_testcase_defaults_from_manifest(manifest: Dict[str, Any]) -> None:
 
 def load_dbml(dbml_path: str) -> PyDBML:
     """
-    Charge le fichier DBML Produit.
+    Charge le fichier DBML.
     """
     if not os.path.exists(dbml_path):
         raise FileNotFoundError(f"Fichier DBML introuvable : {dbml_path}")
@@ -218,7 +218,7 @@ def get_schemachange_entry_from_manifest(manifest: Dict[str, Any]) -> Dict[str, 
 
 
 def get_dbml_entry_from_manifest(manifest: Dict[str, Any],
-                                 project_name: str = "Customer") -> Dict[str, Any]:
+                                 project_name: str = "customer") -> Dict[str, Any]:
     """
     Récupère l'entrée dbml[name=project_name] dans manifest.yml.
     """
@@ -505,7 +505,7 @@ def generate_testcases_from_dbml(
         table_name = table_qualified_name(table)
         schema_name = getattr(table, "schema", "") or ""
         schema_name = schema_name.upper()
-        logger.info(f"Table PRODUIT détectée : {table_name}")
+        logger.info(f"Table cible détectée : {table_name}")
 
         columns = getattr(table, "columns", []) or []
         pk_columns = [col for col in columns if is_pk_column(col)]
@@ -832,20 +832,52 @@ WHERE NOT EXISTS (
     return "\n\n".join(lines) + "\n"
 
 
-def write_sql_file(sql_text: str, target_dir: str = SQL_TARGET_DIR) -> Path:
-    """
-    Écrit le script SQL dans target/rows-t_testcase-YYYYMMDD-HHMMSS.sql
-    """
-    p = Path(target_dir)
-    p.mkdir(parents=True, exist_ok=True)
+# def write_sql_file(sql_text: str, target_dir: str = SQL_TARGET_DIR) -> Path:
+#     """
+#     Écrit le script SQL dans target/rows-t_testcase-YYYYMMDD-HHMMSS.sql
+#     """
+#     p = Path(target_dir)
+#     p.mkdir(parents=True, exist_ok=True)
 
-    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
-    filename = f"rows-t_testcase-{ts}.sql"
-    full_path = p / filename
+#     ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+#     filename = f"rows-t_testcase-{ts}.sql"
+#     full_path = p / filename
 
-    full_path.write_text(sql_text, encoding="utf-8")
-    logger.info(f"Fichier SQL généré : {full_path}")
-    return full_path
+#     full_path.write_text(sql_text, encoding="utf-8")
+#     logger.info(f"Fichier SQL généré : {full_path}")
+#     return full_path
+
+def execute_sql_on_snowflake(sql_text: str, conn) -> None:
+    """
+    Découpe le script SQL généré et l'exécute directement sur Snowflake.
+    """
+    if not sql_text or "-- Aucun testcase généré." in sql_text:
+        logger.info("Aucun testcase à synchroniser.")
+        return
+
+    logger.info("Début de l'exécution du script SQL sur Snowflake...")
+    cur = conn.cursor()
+    
+    # On sépare par ';' pour isoler les blocs INSERT...SELECT
+    statements = [s.strip() for s in sql_text.split(';') if s.strip()]
+    
+    count = 0
+    try:
+        for stmt in statements:
+            # On ignore les lignes de commentaires pour l'exécution
+            if stmt.startswith("--"):
+                continue
+            
+            cur.execute(stmt)
+            count += 1
+            
+        logger.info(f" Synchronisation réussie : {count} requêtes exécutées.")
+    except Exception as e:
+        logger.error(f" Erreur lors de l'exécution Snowflake : {e}")
+        # On relance l'exception pour que le main() puisse l'attraper et faire un exit(1)
+        raise 
+    finally:
+        cur.close()
 
 # ---------------------------------------------------------------------------
 # MAIN
@@ -863,8 +895,8 @@ def main():
     dbml_project_meta = extract_project_meta_from_dbml_file(DBML_PATH)
     dbml = load_dbml(DBML_PATH)
 
-    project_name = dbml_project_meta.get("project_name") or manifest.get("project", {}).get("name", "Produit")
-    project_version = dbml_project_meta.get("project_version") or manifest.get("project", {}).get("version", "0.0.0")
+    project_name = dbml_project_meta.get("project_name") #or manifest.get("project", {}).get("name", "Produit")
+    project_version = dbml_project_meta.get("project_version") #or manifest.get("project", {}).get("version", "0.0.0")
 
     logger.info(f"Projet: {project_name}, version {project_version}")
 
@@ -888,9 +920,9 @@ def main():
 
         # Script SQL
         sql_text = build_insert_sql(testcases)
-        sql_path = write_sql_file(sql_text, SQL_TARGET_DIR)
-
-        logger.info(f"Génération des testcases terminée. Script : {sql_path}")
+        #sql_path = write_sql_file(sql_text, SQL_TARGET_DIR)
+        execute_sql_on_snowflake(sql_text, conn)
+        logger.info(f"Génération des testcases terminée.")
     finally:
         conn.close()
         logger.info("Connexion Snowflake fermée.")

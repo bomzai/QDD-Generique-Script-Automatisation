@@ -4,16 +4,16 @@ ecs_task:
     minor: 0
 
 dbml: 
-  - name: Produit
-    url: https://gitlab.mnh.fr/datahub/dbt/ref/referentiels_data_model.git
+  - name: customer
+    url: 
     tag: dev
-    schema: SCH_REF_PRODUIT
-    file_path: dbml/produit/core.dbml
+    schema: CUSTOMER_SCHEMA
+    file_path: dbml/customer.dbml
 
 schemachange: 
-  repo_url: https://gitlab.mnh.fr/datahub/apps/kqi-solva-2-schema
+  repo_url: 
   repo_tag: feat-modele-v1
 
 
 bd:
-  - schema: SCH_REF_PRODUIT
+  - schema: CUSTOMER_SCHEMA
