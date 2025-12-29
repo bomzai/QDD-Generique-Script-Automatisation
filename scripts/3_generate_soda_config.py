@@ -18,12 +18,17 @@ Objectif :
 
 from pathlib import Path
 
-from qdd_utils import get_logger, env
+from qdd_utils import (
+    get_logger,
+    env,
+    SODA_CONFIG_TEMPLATE,
+    SODA_CONFIG_OUTPUT,
+)
 
-logger = get_logger("étape 3 : génerer la configuration SODA")
+logger = get_logger("étape 3 : générer la config SODA")
 
-DEFAULT_TEMPLATE = Path("soda/configs/dev-config-template.yml")
-DEFAULT_OUTPUT = Path("soda/configs/dev-config.yml")
+DEFAULT_TEMPLATE = SODA_CONFIG_TEMPLATE
+DEFAULT_OUTPUT = SODA_CONFIG_OUTPUT
 
 # Mapping placeholder -> nom de variable d'environnement
 PLACEHOLDER_ENV_MAP = {
@@ -48,11 +53,6 @@ def generate_config(
     # Remplacement de tous les placeholders connus par les valeurs d'env
     for placeholder, env_name in PLACEHOLDER_ENV_MAP.items():
         value = env(env_name, required=True).strip()
-
-        # # Cas spécial : SNOWFLAKE_ACCOUNT -> on garantit le suffixe ".privatelink"
-        # if env_name == "SNOWFLAKE_ACCOUNT":
-        #     if ".privatelink" not in value:
-        #         value = f"{value}.privatelink"
 
         if env_name == "PRIVATE_KEY_PATH":
             # on veut supprimer les guillemets autour du placeholder :

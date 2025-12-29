@@ -1,3 +1,6 @@
+# Ignore Python virtual environment
+/.venv/
+
 # Secrets folder
 /secrets/
 
@@ -11,3 +14,5 @@ __pycache__/
 
 # Soda config file
 dev-config.yml
+
+target/

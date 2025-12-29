@@ -28,7 +28,7 @@ from cryptography.hazmat.backends import default_backend
 
 from qdd_utils import get_logger, env
 
-logger = get_logger("étape 4 : test connexion Snowflake")
+logger = get_logger("test connexion Snowflake")
 
 
 def _load_private_key(private_key_path: str):

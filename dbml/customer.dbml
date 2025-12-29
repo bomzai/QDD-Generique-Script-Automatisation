@@ -1,11 +1,8 @@
-// Définition du projet
 Project CUSTOMER {
-    name: "Customer Data Model"
-    version: "1"
-    Note: 'Customer Data Model - Version 1'
+  name: "customer"
+  version: "1"
 }
 
-// Définition de la table
 Table CUSTOMER_SCHEMA.CUSTOMER [headercolor: #34db95] {
     C_CUSTKEY int [pk, note: 'Customer primary key']
     C_NAME varchar(25) [note: 'Customer name']
