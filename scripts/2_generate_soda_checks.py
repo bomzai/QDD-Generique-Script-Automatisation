@@ -19,6 +19,9 @@ from qdd_utils import (
     DBML_PATH,
     load_manifest,
     ensure_dbml_version,
+    TABLE_TESTCASE,
+    TABLE_METRIQUE,
+    
 )
 from qdd_utils import q_ident, q_qualified, q_str, write_yaml_file, SODA_CHECKS_DIR
 
@@ -70,13 +73,11 @@ def dataset_name_from_table(table_cible: str) -> str:
         return ""
     table_cible = table_cible.strip()
     if "." not in table_cible:
-        return f"SCH_REF_{table_cible.upper()}"
+        return table_cible.upper()
     schema, table = table_cible.split(".", 1)
     schema_up = schema.strip().upper()
     table_up = table.strip().upper()
-    if schema_up.startswith("SCH_REF_"):
-        return f"{schema_up}.{table_up}"
-    return f"SCH_REF_{schema_up}.{table_up}"
+    return f"{schema_up}.{table_up}"
 
 
 def ref_dataset_name_from_table(ref_table: str) -> str:
@@ -90,9 +91,7 @@ def ref_dataset_name_from_table(ref_table: str) -> str:
     schema_up = schema.strip().upper()
     table_up = table.strip().upper()
 
-    if schema_up.startswith("SCH_REF_"):
-        return f"{schema_up}.{table_up}"
-    return f"SCH_REF_{schema_up}.{table_up}"
+    return f"{schema_up}.{table_up}"
 
 
 def get_target_referential_schema() -> str:
@@ -228,7 +227,7 @@ def load_testcases_with_metrics(conn) -> List[Dict[str, Any]]:
         "1", "true", "yes", "y"
     )
 
-    sql_versioned = """
+    sql_versioned = f"""
         SELECT
             TST_IDF,
             TST_NOM_TEST,
@@ -261,8 +260,8 @@ def load_testcases_with_metrics(conn) -> List[Dict[str, Any]]:
                         T.TST_IDF_METRIQUE
                     ORDER BY T.TST_DATE_CREATION DESC
                 ) AS RN
-            FROM T_TESTCASE T
-            JOIN T_METRIQUE M
+            FROM {TABLE_TESTCASE} T
+            JOIN {TABLE_METRIQUE} M
               ON T.TST_IDF_METRIQUE = M.MET_IDF
             WHERE
                 T.TST_TYPE = 'AUTO_GENERER'
@@ -273,7 +272,7 @@ def load_testcases_with_metrics(conn) -> List[Dict[str, Any]]:
         WHERE RN = 1
     """
 
-    sql_legacy_null = """
+    sql_legacy_null = f"""
         SELECT
             TST_IDF,
             TST_NOM_TEST,
@@ -306,8 +305,8 @@ def load_testcases_with_metrics(conn) -> List[Dict[str, Any]]:
                         T.TST_IDF_METRIQUE
                     ORDER BY T.TST_DATE_CREATION DESC
                 ) AS RN
-            FROM T_TESTCASE T
-            JOIN T_METRIQUE M
+            FROM {TABLE_TESTCASE} T
+            JOIN {TABLE_METRIQUE} M
               ON T.TST_IDF_METRIQUE = M.MET_IDF
             WHERE
                 T.TST_TYPE = 'AUTO_GENERER'
@@ -318,9 +317,9 @@ def load_testcases_with_metrics(conn) -> List[Dict[str, Any]]:
         WHERE RN = 1
     """
 
-    sql_count_legacy = """
+    sql_count_legacy = f"""
         SELECT COUNT(*)
-        FROM T_TESTCASE T
+        FROM {TABLE_TESTCASE} T
         WHERE
             T.TST_TYPE = 'AUTO_GENERER'
             AND (T.TST_VALIDE_JUSQUA IS NULL OR T.TST_VALIDE_JUSQUA > CURRENT_DATE())

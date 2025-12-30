@@ -20,7 +20,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
-from qdd_utils import get_logger, connect_snowflake_from_env, env
+from qdd_utils import (
+    get_logger, 
+    connect_snowflake_from_env, 
+    env,
+    TABLE_TESTCASE_RESULT,
+)
 
 logger = get_logger("étape 4 : Sauvgarder les résultats dans Snowflake")
 
@@ -324,8 +329,8 @@ def main():
 
     try:
         schema = env("SNOWFLAKE_SCHEMA", required=True)
-        table_name = os.getenv("T_TESTCASE_RESULT_TABLE", "T_TESTCASE_RESULT")
-        full_table = q_qualified(f"{schema}.{table_name}")
+        table_name = TABLE_TESTCASE_RESULT
+        full_table = q_qualified(TABLE_TESTCASE_RESULT)
         insert_results(conn, rows, full_table)
     finally:
         conn.close()

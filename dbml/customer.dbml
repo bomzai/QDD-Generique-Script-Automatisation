@@ -1,6 +1,7 @@
-Project CUSTOMER {
+Project CUSTOMER_DATABASE {
   name: "customer"
   version: "1"
+  note: 'Base de données cible : CUSTOMER_DATABASE'
 }
 
 Table CUSTOMER_SCHEMA.CUSTOMER [headercolor: #34db95] {

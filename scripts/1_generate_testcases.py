@@ -16,9 +16,9 @@ from qdd_utils import (
     MANIFEST_PATH,
     DBML_NAME,
     DBML_PATH,
-    GITLAB_TOKEN_FILE,
-    SQL_TARGET_DIR, 
     ensure_dbml_version,
+    TABLE_TESTCASE,
+    TABLE_METRIQUE,
 )
 
 from pydbml import PyDBML
@@ -51,7 +51,7 @@ def parse_date(s: str) -> date:
     return datetime.strptime(s, "%Y-%m-%d").date()
 
 
-def compute_default_dates() -> (date, date):
+def compute_default_dates() -> (date, date): # type: ignore
     """
     Calcule les dates par défaut (valide_de / valide_jusqua)
     """
@@ -210,13 +210,6 @@ def extract_project_meta_from_dbml_file(dbml_path: str) -> Dict[str, Optional[st
     }
 
 
-def get_schemachange_entry_from_manifest(manifest: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Récupère la section 'schemachange' du manifest, si présente.
-    """
-    return manifest.get("schemachange", {}) or {}
-
-
 def get_dbml_entry_from_manifest(manifest: Dict[str, Any],
                                  project_name: str = "customer") -> Dict[str, Any]:
     """
@@ -240,7 +233,7 @@ def is_ref_table(table) -> bool:
     TARGET_DBML_SCHEMA = get_target_dbml_schema(MANIFEST_PATH, DBML_NAME)
     
     # On définit les schémas autorisés (le vôtre + le défaut)
-    allowed_targets = ["PRODUIT", "CUSTOMER_SCHEMA"]
+    allowed_targets = ["CUSTOMER_SCHEMA"]
     if TARGET_DBML_SCHEMA:
         allowed_targets.append(TARGET_DBML_SCHEMA.upper())
 
@@ -258,7 +251,6 @@ def is_ref_table(table) -> bool:
             return True
 
     return False
-
 
 
 def table_qualified_name(table) -> str:
@@ -403,13 +395,13 @@ def load_metrics(conn) -> List[Dict[str, Any]]:
     metrics = []
     cur = conn.cursor()
     try:
-        sql = """
+        sql = f"""
             SELECT
                 MET_IDF,
                 MET_NOM_METRIQUE,
                 MET_TYPE,
                 MET_DESCRIPTION
-            FROM T_METRIQUE
+            FROM {TABLE_METRIQUE}
         """
         cur.execute(sql)
         rows = cur.fetchall()
@@ -783,7 +775,7 @@ def build_insert_sql(testcases: List[Dict[str, Any]]) -> str:
         )
 
         insert = f"""
-INSERT INTO T_TESTCASE (
+INSERT INTO {TABLE_TESTCASE} (
     TST_IDF,
     TST_NOM_TEST,
     TST_SOURCE_CIBLE_ID,
@@ -822,7 +814,7 @@ SELECT
     {sql_literal(tc["TST_ID_DBML_VERSION"])}
 WHERE NOT EXISTS (
     SELECT 1
-    FROM T_TESTCASE
+    FROM {TABLE_TESTCASE}
     WHERE {cond}
 );
 """.strip("\n")
@@ -832,50 +824,40 @@ WHERE NOT EXISTS (
     return "\n\n".join(lines) + "\n"
 
 
-# def write_sql_file(sql_text: str, target_dir: str = SQL_TARGET_DIR) -> Path:
-#     """
-#     Écrit le script SQL dans target/rows-t_testcase-YYYYMMDD-HHMMSS.sql
-#     """
-#     p = Path(target_dir)
-#     p.mkdir(parents=True, exist_ok=True)
-
-#     ts = datetime.now().strftime("%Y%m%d-%H%M%S")
-#     filename = f"rows-t_testcase-{ts}.sql"
-#     full_path = p / filename
-
-#     full_path.write_text(sql_text, encoding="utf-8")
-#     logger.info(f"Fichier SQL généré : {full_path}")
-#     return full_path
-
 def execute_sql_on_snowflake(sql_text: str, conn) -> None:
     """
-    Découpe le script SQL généré et l'exécute directement sur Snowflake.
+    Exécute les statements SQL sur Snowflake.
+    Extrait tous les blocs INSERT, UPDATE, DELETE, MERGE.
     """
-    if not sql_text or "-- Aucun testcase généré." in sql_text:
+    if not sql_text:
+        logger.info("Aucun SQL à exécuter.")
+        return
+    
+    if "-- Aucun testcase généré." in sql_text:
         logger.info("Aucun testcase à synchroniser.")
         return
 
     logger.info("Début de l'exécution du script SQL sur Snowflake...")
+    
+    # Extraction de tous les statements DML valides
+    pattern = r'((?:INSERT\s+INTO|UPDATE|DELETE\s+FROM|MERGE\s+INTO)\s+[\s\S]*?;)'
+    statements = re.findall(pattern, sql_text, re.IGNORECASE)
+    
+    if not statements:
+        logger.warning("Aucun statement DML trouvé dans le SQL généré.")
+        return
+    
     cur = conn.cursor()
-    
-    # On sépare par ';' pour isoler les blocs INSERT...SELECT
-    statements = [s.strip() for s in sql_text.split(';') if s.strip()]
-    
     count = 0
+    
     try:
         for stmt in statements:
-            # On ignore les lignes de commentaires pour l'exécution
-            if stmt.startswith("--"):
-                continue
-            
             cur.execute(stmt)
             count += 1
-            
-        logger.info(f" Synchronisation réussie : {count} requêtes exécutées.")
+        logger.info(f"Synchronisation réussie : {count} requêtes exécutées.")
     except Exception as e:
-        logger.error(f" Erreur lors de l'exécution Snowflake : {e}")
-        # On relance l'exception pour que le main() puisse l'attraper et faire un exit(1)
-        raise 
+        logger.error(f"Erreur lors de l'exécution Snowflake : {e}")
+        raise
     finally:
         cur.close()
 

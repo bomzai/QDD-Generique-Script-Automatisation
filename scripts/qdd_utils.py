@@ -22,6 +22,15 @@ import snowflake.connector
 import yaml
 from cryptography.hazmat.primitives import serialization
 
+# ---------------------------------------------------------------------------
+# PARAMÈTRES QDD
+# ---------------------------------------------------------------------------
+# Noms complets des tables QDD
+TABLE_TESTCASE = "QDD_DATABASE.QDD.T_TESTCASE"
+TABLE_METRIQUE = "QDD_DATABASE.QDD.T_METRIQUE"
+TABLE_DBML_VERSION = "QDD_DATABASE.QDD.T_DBML_VERSION"
+TABLE_TESTCASE_RESULT = "QDD_DATABASE.QDD.T_TESTCASE_RESULT" 
+
 # Dossier racine du projet (là où se trouve manifest.yml, soda/, target/, etc.)
 BASE_DIR = Path("./")
 
@@ -378,9 +387,9 @@ def ensure_dbml_version(
     repo_tag = (dbml_entry or {}).get("tag", "")
     schema_cible = (dbml_entry or {}).get("schema", "")
 
-    select_sql = """
+    select_sql = f"""
         SELECT DBV_IDF
-        FROM T_DBML_VERSION
+        FROM {TABLE_DBML_VERSION}
         WHERE DBV_PROJET_NAME = %s
           AND DBV_PROJET_VERSION = %s
           AND COALESCE(DBV_SCHEMA_CIBLE, '') = COALESCE(%s, '')
@@ -388,8 +397,8 @@ def ensure_dbml_version(
         LIMIT 1
     """
 
-    insert_sql = """
-        INSERT INTO T_DBML_VERSION (
+    insert_sql = f"""
+        INSERT INTO {TABLE_DBML_VERSION} (
             DBV_PROJET_NAME,
             DBV_PROJET_VERSION,
             DBV_REPO_URL,
