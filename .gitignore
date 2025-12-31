@@ -15,4 +15,4 @@ __pycache__/
 # Soda config file
 dev-config.yml
 
-target/
+/target/
