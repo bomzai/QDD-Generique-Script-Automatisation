@@ -849,33 +849,38 @@ WHERE NOT EXISTS (
 
 def execute_sql_on_snowflake(sql_text: str, conn) -> None:
     """
-    Découpe le script SQL généré et l'exécute directement sur Snowflake.
+    Exécute les statements SQL sur Snowflake.
+    Extrait tous les blocs INSERT, UPDATE, DELETE, MERGE.
     """
-    if not sql_text or "-- Aucun testcase généré." in sql_text:
+    if not sql_text:
+        logger.info("Aucun SQL à exécuter.")
+        return
+    
+    if "-- Aucun testcase généré." in sql_text:
         logger.info("Aucun testcase à synchroniser.")
         return
 
     logger.info("Début de l'exécution du script SQL sur Snowflake...")
+    
+    # Extraction de tous les statements DML valides
+    pattern = r'((?:INSERT\s+INTO|UPDATE|DELETE\s+FROM|MERGE\s+INTO)\s+[\s\S]*?;)'
+    statements = re.findall(pattern, sql_text, re.IGNORECASE)
+    
+    if not statements:
+        logger.warning("Aucun statement DML trouvé dans le SQL généré.")
+        return
+    
     cur = conn.cursor()
-    
-    # On sépare par ';' pour isoler les blocs INSERT...SELECT
-    statements = [s.strip() for s in sql_text.split(';') if s.strip()]
-    
     count = 0
+    
     try:
         for stmt in statements:
-            # On ignore les lignes de commentaires pour l'exécution
-            if stmt.startswith("--"):
-                continue
-            
             cur.execute(stmt)
             count += 1
-            
-        logger.info(f" Synchronisation réussie : {count} requêtes exécutées.")
+        logger.info(f"Synchronisation réussie : {count} requêtes exécutées.")
     except Exception as e:
-        logger.error(f" Erreur lors de l'exécution Snowflake : {e}")
-        # On relance l'exception pour que le main() puisse l'attraper et faire un exit(1)
-        raise 
+        logger.error(f"Erreur lors de l'exécution Snowflake : {e}")
+        raise
     finally:
         cur.close()
 
@@ -917,7 +922,10 @@ def main():
             dbml_version_id=dbml_version_id,
             source_cible_id=source_cible_id_int,
         )
-
+        logger.info("=== Liste des testcases générés ===")
+        for tc in testcases:
+            logger.info(f"{tc['TST_KIND']} | {tc['TST_TABLE_CIBLE']} | {tc['TST_CHAMP_CIBLE']} | {tc['TST_IDF']}")
+            logger.info("===================================")
         # Script SQL
         sql_text = build_insert_sql(testcases)
         #sql_path = write_sql_file(sql_text, SQL_TARGET_DIR)
