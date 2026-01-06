@@ -7,3 +7,53 @@ dbml:
 
 bd:
   - schema: CUSTOMER_SCHEMA
+
+defaults_testcases_values:
+  tst_poids: 1
+  tst_freq: "J"
+  tst_seuil_borne_inferieur: 0.0
+  tst_seuil_borne_superieur: 0.0
+
+# Validations métier personnalisées
+business_validations:
+  # Validation 1 : Solde de compte positif
+  - validation_id: "positive_balance"
+    validation_type: "business_rule"
+    validation_name: "Solde Compte Positif"
+    description: "Le solde du compte doit être >= 0"
+    formula: "nb_valeurs_positive / nb_total_enregistrements"
+    targets:
+      - schema: CUSTOMER_SCHEMA
+        table: CUSTOMER
+        column: C_ACCTBAL
+        rule_sql: "{column} < 0"
+        threshold_min: 0.0
+        threshold_max: 0.0
+
+  # Validation 2 : Format téléphone valide
+  - validation_id: "phone_format"
+    validation_type: "business_rule"
+    validation_name: "Format Téléphone"
+    description: "Le téléphone doit contenir uniquement chiffres, tirets, +, parenthèses et espaces"
+    formula: "nb_numeros_valides / nb_total_enregistrements"
+    targets:
+      - schema: CUSTOMER_SCHEMA
+        table: CUSTOMER
+        column: C_PHONE
+        rule_sql: "NOT REGEXP_LIKE({column}, '^[0-9+() -]+$')"
+        threshold_min: 0.0
+        threshold_max: 0.0
+
+# Validation 3 : Valeurs autorisées pour le segment marketing
+  - validation_id: "mktsegment_allowed_values"
+    validation_type: "business_rule"
+    validation_name: "Segment Marketing Valide"
+    description: "Le segment doit être l'un des suivants : AUTOMOBILE, BUILDING, MACHINERY, HOUSEHOLD, FURNITURE"
+    formula: "nb_segments_valides / nb_total_enregistrements"
+    targets:
+      - schema: CUSTOMER_SCHEMA
+        table: CUSTOMER
+        column: C_MKTSEGMENT
+        rule_sql: "{column} NOT IN ('AUTOMOBILE', 'BUILDING', 'MACHINERY', 'HOUSEHOLD', 'FURNITURE')"
+        threshold_min: 0.0
+        threshold_max: 0.0

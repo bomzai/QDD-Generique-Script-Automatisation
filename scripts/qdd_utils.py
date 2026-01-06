@@ -161,6 +161,7 @@ def classify_metric(metric_name: str, critere: str) -> str:
     - 'unicite'
     - 'integrite'
     - 'tracabilite'
+    - 'validation_metier'
     - 'autre'
     en fonction du nom de la métrique et du critère QDD.
 
@@ -182,11 +183,15 @@ def classify_metric(metric_name: str, critere: str) -> str:
     # - critère QDD = 'TRA'
     if "traç" in nom_lower or crit_upper == "TRA":
         return "tracabilite"
-
+    
     # Intégrité de référentiel / FK
     if "intégr" in nom_lower or "integr" in nom_lower or crit_upper in ("INT", "FK", "REF"):
         return "integrite"
-
+    
+    # Validation Métier
+    if "validation" in nom_lower or crit_upper in ("VAL", "VAL_METIER", "VAL_FORMAT"):
+        return "validation_metier"
+    
     return "autre"
 
 def read_text_file(path: str, strip: bool = True) -> str:

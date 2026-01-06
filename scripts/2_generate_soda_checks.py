@@ -59,6 +59,29 @@ def parse_integrity_ref(description: str) -> Optional[Tuple[str, str]]:
     schema, table, col = m.group(1), m.group(2), m.group(3)
     return f"{schema.upper()}.{table.upper()}", col.upper()
 
+def parse_validation_rule(description: str) -> Optional[str]:
+    """
+    Extrait le SQL de règle depuis TST_DESCRIPTION pour les tests validation_metier.
+
+    Pattern: "... - RULE_SQL: <expression_sql>"
+
+    Example:
+        Input: "Test validation - RULE_SQL: {column} < 0"
+        Output: "{column} < 0"
+
+    Returns:
+        Expression SQL ou None si non trouvé
+    """
+    if not description:
+        return None
+
+    marker = "RULE_SQL:"
+    idx = description.find(marker)
+    if idx == -1:
+        return None
+
+    rule_sql = description[idx + len(marker):].strip()
+    return rule_sql if rule_sql else None
 
 # -----------------------------------------------------------------------------
 # Mapping logique -> physique (inchangé)
@@ -529,12 +552,56 @@ def generate_soda_checks_for_table(dataset: str, testcases: List[Dict[str, Any]]
             }
             checks.append({header: body})
             continue
+        
+        # ---------------------------------------------------------
+        # VALIDATION MÉTIER (Business Validations)
+        # ---------------------------------------------------------
+        if kind == "validation_metier":
+            if not col:
+                logger.warning("Testcase %s sans colonne pour validation métier, ignoré.", tc["TST_IDF"])
+                continue
+
+            # Parser le SQL de règle depuis la description
+            rule_sql = parse_validation_rule(desc)
+            if not rule_sql:
+                logger.error(
+                    "Impossible d'extraire RULE_SQL pour testcase %s (desc: '%s'). "
+                    "Format attendu: '... - RULE_SQL: <expression>'",
+                    tc["TST_IDF"], desc[:200]
+                )
+                continue
+
+            # Remplacer {column} par nom de colonne qualifié
+            col_sql = q_ident(col)
+            rule_sql_expanded = rule_sql.replace("{column}", f"t.{col_sql}")
+
+            # Nom de métrique et header
+            metric_name = f"invalid_count-val-{table_cible}-{col}"
+            header = f"{metric_name} between {low} and {high}"
+
+            # Requête SQL comptant les violations
+            dataset_sql = q_qualified(dataset)
+
+            query_sql = (
+                f'SELECT COUNT(*) AS "{metric_name}"\n'
+                f"FROM {dataset_sql} t\n"
+                f"WHERE {rule_sql_expanded}"
+            )
+
+            body = {
+                "name": tc["TST_NOM_TEST"],
+                f"{metric_name} query": query_sql,
+                "attributes": attributes,
+            }
+            checks.append({header: body})
+            continue
 
         # ---------------------------------------------------------
         # AUTRES
         # ---------------------------------------------------------
         logger.info("Testcase %s (metrique '%s') classé en 'autre', ignoré.", tc["TST_IDF"], met_name)
 
+        
     return {f"checks for {dataset}": checks}
 
 import yaml

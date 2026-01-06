@@ -221,6 +221,27 @@ def get_dbml_entry_from_manifest(manifest: Dict[str, Any],
             return entry
     return {}
 
+def load_business_validations_from_manifest(manifest: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """
+    Charge les règles de validation métier depuis manifest.yml.
+
+    Returns:
+        Liste des configurations de validation avec structure:
+        {
+            'validation_id': 'positive_balance',
+            'validation_name': 'Solde Compte Positif',
+            'targets': [{'schema': 'X', 'table': 'Y', 'column': 'Z', 'rule_sql': '...'}]
+        }
+    """
+    validations = manifest.get("business_validations", []) or []
+
+    if not validations:
+        logger.info("Aucune validation métier définie dans manifest.yml")
+        return []
+
+    logger.info(f"{len(validations)} validation(s) métier chargée(s) depuis manifest")
+    return validations
+
 # ---------------------------------------------------------------------------
 # OUTILS DBML : TABLES / COLONNES / FK
 # ---------------------------------------------------------------------------
@@ -429,6 +450,72 @@ def load_metrics(conn) -> List[Dict[str, Any]]:
     finally:
         cur.close()
 
+def get_or_create_validation_metric(
+    conn,
+    validation_config: Dict[str, Any]
+) -> Dict[str, Any]:
+    """
+    Récupère ou crée dynamiquement une métrique de validation.
+    Permet des métriques pilotées par manifest sans INSERT manuel.
+    """
+    validation_id = validation_config.get("validation_id", "")
+    validation_name = validation_config.get("validation_name", "")
+    description = validation_config.get("description", "")
+    formula = validation_config.get("formula", "")
+
+    # ID de métrique stable
+    met_idf = f"MET_VAL_{validation_id.upper()}"
+
+    cur = conn.cursor()
+    try:
+        # Vérifier si la métrique existe
+        sql_select = f"""
+            SELECT MET_IDF, MET_NOM_METRIQUE, MET_TYPE, MET_DESCRIPTION
+            FROM {TABLE_METRIQUE}
+            WHERE MET_IDF = %s
+        """
+        cur.execute(sql_select, (met_idf,))
+        row = cur.fetchone()
+
+        if row:
+            logger.info(f"Utilisation métrique existante: {met_idf}")
+            return {
+                "id": row[0],
+                "nom": row[1] or "",
+                "crit": row[2] or "",
+                "description": row[3],
+                "type_metr": "validation_metier",
+            }
+
+        # Créer nouvelle métrique avec formule si disponible
+        sql_insert = f"""
+            INSERT INTO {TABLE_METRIQUE} (
+                MET_IDF, MET_NOM_METRIQUE, MET_TYPE,
+                MET_DESCRIPTION, MET_FORMULE_CALCUL, MET_DATE_MISE_A_JOUR
+            )
+            VALUES (%s, %s, %s, %s, %s, CURRENT_TIMESTAMP())
+        """
+
+        met_nom = f"Validation Métier - {validation_name}"
+        met_type = "VAL_METIER"
+
+        # Utiliser la formule si fournie, sinon NULL
+        met_formule = formula if formula else None
+
+        cur.execute(sql_insert, (met_idf, met_nom, met_type, description, met_formule))
+        conn.commit()
+
+        logger.info(f"Création métrique: {met_idf} avec formule: {met_formule}")
+
+        return {
+            "id": met_idf,
+            "nom": met_nom,
+            "crit": met_type,
+            "description": description,
+            "type_metr": "validation_metier",
+        }
+    finally:
+        cur.close()
 
 def get_metric_by_type(metrics: List[Dict[str, Any]], type_metr: str) -> Optional[Dict[str, Any]]:
     """
@@ -463,7 +550,9 @@ def generate_testcases_from_dbml(
     dbml: PyDBML,
     metrics: List[Dict[str, Any]],
     dbml_version_id: int,
-    source_cible_id: int = 1
+    source_cible_id: int = 1,
+    manifest: Dict[str, Any] = None,
+    conn = None
 ) -> List[Dict[str, Any]]:
     """
     Génère les T_TESTCASE pour toutes les tables PRODUIT trouvées dans le DBML :
@@ -728,7 +817,89 @@ def generate_testcases_from_dbml(
                         "TST_KIND": "tracabilite",
                     }
                 )
+        # -------------------------------------------------------------------
+        # VALIDATION MÉTIER (Business Validations)
+        # -------------------------------------------------------------------
+        if manifest:
+            business_validations = load_business_validations_from_manifest(manifest)
 
+            for validation_config in business_validations:
+                targets = validation_config.get("targets", [])
+
+                for target in targets:
+                    target_schema = target.get("schema", "").upper()
+                    target_table = target.get("table", "").upper()
+                    target_column = target.get("column", "").upper()
+                    rule_sql = target.get("rule_sql", "")
+                    threshold_min = target.get("threshold_min", DEFAULT_SEUIL_INF)
+                    threshold_max = target.get("threshold_max", DEFAULT_SEUIL_SUP)
+
+                    # Vérifier si cette cible correspond à la table en cours
+                    if schema_name != target_schema or table.name.upper() != target_table:
+                        continue
+
+                    # Vérifier que la colonne existe
+                    col_exists = any(col.name.upper() == target_column for col in columns)
+                    if not col_exists:
+                        logger.warning(
+                            f"Colonne {target_column} non trouvée dans {table_name}, ignorée"
+                        )
+                        continue
+
+                    # Récupérer/créer métrique (nécessite conn - voir modification 3.4)
+                    validation_metric = get_or_create_validation_metric(conn, validation_config)
+
+                    # Générer clé stable pour testcase
+                    validation_id = validation_config.get("validation_id", "")
+                    key = build_testcase_key(
+                        kind="validation_metier",
+                        schema_name=schema_name,
+                        table_name=table.name,
+                        champ_key=target_column,
+                        metric_id=validation_metric["id"],
+                        source_cible_id=source_cible_id,
+                        dbml_version_id=dbml_version_id,
+                        ref_target=validation_id,
+                    )
+                    tst_idf = build_tst_idf(key)
+
+                    tst_nom = format_test_name(
+                        validation_metric["crit"],
+                        schema_name,
+                        table.name,
+                        target_column,
+                        tst_idf,
+                    )
+
+                    validation_name = validation_config.get("validation_name", "")
+                    desc = (
+                        f"Test de validation métier - Table {table_name}, "
+                        f"Colonne {target_column} - Règle: {validation_name}"
+                    )
+
+                    # Stocker rule_sql dans description pour Script 2
+                    desc_with_rule = f"{desc} - RULE_SQL: {rule_sql}"
+
+                    testcases.append({
+                        "TST_IDF": tst_idf,
+                        "TST_NOM_TEST": tst_nom,
+                        "TST_SOURCE_CIBLE_ID": source_cible_id,
+                        "TST_TABLE_CIBLE": table_name,
+                        "TST_CHAMP_CIBLE": target_column,
+                        "TST_IDF_METRIQUE": validation_metric["id"],
+                        "TST_TYPE": "AUTO_GENERER",
+                        "TST_DESCRIPTION": desc_with_rule,
+                        "TST_POIDS": DEFAULT_POIDS,
+                        "TST_SEUIL_BORNE_INFERIEURE": threshold_min,
+                        "TST_SEUIL_BORNE_SUPERIEURE": threshold_max,
+                        "TST_FREQ": DEFAULT_FREQ,
+                        "TST_DATE_MISE_A_JOUR": None,
+                        "TST_DATE_CREATION": date.today(),
+                        "TST_VALIDE_DE": valid_de,
+                        "TST_VALIDE_JUSQUA": valid_jusqua,
+                        "TST_ID_DBML_VERSION": dbml_version_id,
+                        "TST_KIND": "validation_metier",
+                    })
     logger.info(f"{len(testcases)} testcases générés.")
     return testcases
 
@@ -898,6 +1069,8 @@ def main():
             metrics=metrics,
             dbml_version_id=dbml_version_id,
             source_cible_id=source_cible_id_int,
+            manifest=manifest,
+            conn=conn       
         )
 
         # Script SQL
