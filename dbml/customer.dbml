@@ -39,3 +39,68 @@ Table CUSTOMER_SCHEMA.ORDERS [headercolor: #34db95] {
 
     Note: 'Orders data as defined by TPC-H'
 }
+
+Table CUSTOMER_SCHEMA.LINEITEM [headercolor: #34db95] {
+    L_ORDERKEY int [pk, ref: > CUSTOMER_SCHEMA.ORDERS.O_ORDERKEY, note: 'Clé étrangère vers ORDERS, partie de la clé primaire (Intégrité)']
+    L_PARTKEY int [note: 'Identifiant de la pièce commandée']
+    L_SUPPKEY int [note: 'Identifiant du fournisseur']
+    L_LINENUMBER int [pk, note: 'Numéro de ligne unique au sein d une commande (Unicité)']
+    L_QUANTITY decimal(12,2) [note: 'Quantité d articles commandés (Complétude)']
+    L_EXTENDEDPRICE decimal(12,2) [note: 'Prix total de la ligne sans remise ni taxe']
+    L_DISCOUNT decimal(12,2) [note: 'Taux de remise appliqué à la ligne']
+    L_TAX decimal(12,2) [note: 'Taux de taxe appliqué à la ligne']
+    L_RETURNFLAG varchar(1) [note: 'Indicateur de retour de marchandise']
+    L_LINESTATUS varchar(1) [note: 'Statut actuel de la ligne de commande']
+    L_SHIPDATE date [note: 'Date d expédition réelle (Traçabilité)']
+    L_COMMITDATE date [note: 'Date d engagement de livraison (Traçabilité)']
+    L_RECEIPTDATE date [note: 'Date de réception par le client (Traçabilité)']
+    L_SHIPINSTRUCT varchar(25) [note: 'Instructions spécifiques pour l expédition']
+    L_SHIPMODE varchar(10) [note: 'Mode de transport utilisé']
+    L_COMMENT varchar(44) [note: 'Commentaire libre sur la ligne de commande']
+
+    Note: 'Détails des lignes de commandes - Table pivot pour les tests d unicité, traçabilité et intégrité'
+}
+
+Table CUSTOMER_SCHEMA.PART [headercolor: #34db95] {
+  P_PARTKEY int [pk, note: 'Primary key for parts (Uniqueness)']
+  P_NAME varchar(55) [note: 'Name of the part']
+  P_MFGR varchar(25) [note: 'Manufacturer name (Completeness)']
+  P_BRAND varchar(10) [note: 'Brand name']
+  P_TYPE varchar(25) [note: 'Part type and category']
+  P_SIZE int [note: 'Size of the part']
+  P_CONTAINER varchar(10) [note: 'Packaging container type']
+  P_RETAILPRICE decimal(12,2) [note: 'Retail price of the part']
+  P_COMMENT varchar(23) [note: 'Free text comment']
+
+  Note: 'Part master data for DQ testing'
+}
+
+Table CUSTOMER_SCHEMA.SUPPLIER [headercolor: #34db95] {
+  S_SUPPKEY int [pk, note: 'Primary key for suppliers (Uniqueness)']
+  S_NAME varchar(25) [note: 'Supplier name']
+  S_ADDRESS varchar(40) [note: 'Supplier street address']
+  S_NATIONKEY int [ref: > CUSTOMER_SCHEMA.NATION.N_NATIONKEY, note: 'Foreign key to NATION (Integrity)']
+  S_PHONE varchar(15) [note: 'Supplier phone number']
+  S_ACCTBAL decimal(12,2) [note: 'Supplier account balance']
+  S_COMMENT varchar(101) [note: 'Free text comment']
+
+  Note: 'Supplier master data including geographic links'
+}
+
+Table CUSTOMER_SCHEMA.PARTSUPP [headercolor: #34db95] {
+  PS_PARTKEY int [pk, ref: > CUSTOMER_SCHEMA.PART.P_PARTKEY, note: 'FK to PART, part of composite PK (Integrity)']
+  PS_SUPPKEY int [pk, ref: > CUSTOMER_SCHEMA.SUPPLIER.S_SUPPKEY, note: 'FK to SUPPLIER, part of composite PK (Integrity)']
+  PS_AVAILQTY int [note: 'Quantity currently available in stock (Completeness)']
+  PS_SUPPLYCOST decimal(12,2) [note: 'Cost of the part from this supplier']
+  PS_COMMENT varchar(199) [note: 'Free text comment']
+
+  Note: 'Relationship table between Parts and Suppliers (Many-to-Many)'
+}
+
+Table CUSTOMER_SCHEMA.REGION [headercolor: #34db95] {
+  R_REGIONKEY int [pk, note: 'Primary key for regions (Uniqueness)']
+  R_NAME varchar(25) [note: 'Name of the region (e.g., EUROPE, ASIA)']
+  R_COMMENT varchar(152) [note: 'Free text comment']
+
+  Note: 'Top-level geographic region data'
+}

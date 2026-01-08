@@ -57,3 +57,129 @@ business_validations:
         rule_sql: "{column} NOT IN ('AUTOMOBILE', 'BUILDING', 'MACHINERY', 'HOUSEHOLD', 'FURNITURE')"
         threshold_min: 0.0
         threshold_max: 0.0
+
+  # Validation 4 : Statut de commande valide
+  - validation_id: "order_status_valid"
+    validation_type: "business_rule"
+    validation_name: "Statut Commande Valide"
+    description: "Le statut doit être O (Open), F (Fully processed), ou P (Partially shipped)"
+    formula: "nb_statuts_valides / nb_total_enregistrements"
+    targets:
+      - schema: CUSTOMER_SCHEMA
+        table: ORDERS
+        column: O_ORDERSTATUS
+        rule_sql: "{column} NOT IN ('O', 'F', 'P')"
+        threshold_min: 0.0
+        threshold_max: 0.0
+
+  # Validation 5 : Prix total commande cohérent
+  - validation_id: "order_price_positive"
+    validation_type: "business_rule"
+    validation_name: "Prix Commande Positif"
+    description: "Le prix total d'une commande doit être strictement positif (> 0)"
+    formula: "nb_prix_valides / nb_total_enregistrements"
+    targets:
+      - schema: CUSTOMER_SCHEMA
+        table: ORDERS
+        column: O_TOTALPRICE
+        rule_sql: "{column} <= 0"
+        threshold_min: 0.0
+        threshold_max: 0.0
+
+  # Validation 6 : Remise dans la plage acceptable
+  - validation_id: "discount_range_valid"
+    validation_type: "business_rule"
+    validation_name: "Remise Valide"
+    description: "La remise doit être entre 0 et 1 (représentant 0% à 100%)"
+    formula: "nb_remises_valides / nb_total_enregistrements"
+    targets:
+      - schema: CUSTOMER_SCHEMA
+        table: LINEITEM
+        column: L_DISCOUNT
+        rule_sql: "{column} < 0 OR {column} > 1"
+        threshold_min: 0.0
+        threshold_max: 0.0
+
+  # Validation 7 : Taxe dans la plage acceptable
+  - validation_id: "tax_range_valid"
+    validation_type: "business_rule"
+    validation_name: "Taxe Valide"
+    description: "La taxe doit être entre 0 et 1 (représentant 0% à 100%)"
+    formula: "nb_taxes_valides / nb_total_enregistrements"
+    targets:
+      - schema: CUSTOMER_SCHEMA
+        table: LINEITEM
+        column: L_TAX
+        rule_sql: "{column} < 0 OR {column} > 1"
+        threshold_min: 0.0
+        threshold_max: 0.0
+
+  # Validation 8 : Quantité commandée positive
+  - validation_id: "quantity_positive"
+    validation_type: "business_rule"
+    validation_name: "Quantité Positive"
+    description: "La quantité commandée doit être strictement positive (> 0)"
+    formula: "nb_quantites_valides / nb_total_enregistrements"
+    targets:
+      - schema: CUSTOMER_SCHEMA
+        table: LINEITEM
+        column: L_QUANTITY
+        rule_sql: "{column} <= 0"
+        threshold_min: 0.0
+        threshold_max: 0.0
+
+  # Validation 9 : Cohérence des dates d'expédition
+  - validation_id: "shipdate_coherence"
+    validation_type: "business_rule"
+    validation_name: "Dates Expédition Cohérentes"
+    description: "La date d'expédition doit être <= date de réception"
+    formula: "nb_dates_coherentes / nb_total_enregistrements"
+    targets:
+      - schema: CUSTOMER_SCHEMA
+        table: LINEITEM
+        column: L_SHIPDATE
+        rule_sql: "{column} > L_RECEIPTDATE"
+        threshold_min: 0.0
+        threshold_max: 0.0
+
+  # Validation 10 : Stock disponible non négatif
+  - validation_id: "available_qty_nonnegative"
+    validation_type: "business_rule"
+    validation_name: "Stock Non Négatif"
+    description: "La quantité disponible en stock doit être >= 0"
+    formula: "nb_stocks_valides / nb_total_enregistrements"
+    targets:
+      - schema: CUSTOMER_SCHEMA
+        table: PARTSUPP
+        column: PS_AVAILQTY
+        rule_sql: "{column} < 0"
+        threshold_min: 0.0
+        threshold_max: 0.0
+
+  # Validation 11 : Région valide
+  - validation_id: "nation_region_integrity"
+    validation_type: "business_rule"
+    validation_name: "Nation Region Key Integrity"
+    description: "The Region Key must be a valid identifier between 0 and 4 (Integrity check)"
+    formula: "nb_valid_region_keys / nb_total_records"
+    targets:
+      - schema: CUSTOMER_SCHEMA
+        table: NATION
+        column: N_REGIONKEY
+        rule_sql: "{column} NOT IN (0, 1, 2, 3, 4)"
+        threshold_min: 0.0
+        threshold_max: 0.0
+  
+  # Validation 12 : Priorité de commande valide
+  - validation_id: "order_priority_valid"
+    validation_type: "business_rule"
+    validation_name: "Priorité Commande Valide"
+    description: "La priorité doit être l'une des valeurs standards TPC-H : 1-URGENT, 2-HIGH, 3-MEDIUM, 4-NOT SPECIFIED, 5-LOW"
+    formula: "nb_priorites_valides / nb_total_enregistrements"
+    targets:
+      - schema: CUSTOMER_SCHEMA
+        table: ORDERS
+        column: O_ORDERPRIORITY
+        rule_sql: "{column} NOT IN ('1-URGENT', '2-HIGH', '3-MEDIUM', '4-NOT SPECIFIED', '5-LOW')"
+        threshold_min: 0.0
+        threshold_max: 0.0
