@@ -579,6 +579,11 @@ def generate_testcases_from_dbml(
 
     testcases: List[Dict[str, Any]] = []
 
+    # Charger les validations métier une seule fois (en dehors de la boucle)
+    business_validations = []
+    if manifest:
+        business_validations = load_business_validations_from_manifest(manifest)
+
     for table in dbml.tables:
         if not is_ref_table(table):
             continue
@@ -820,9 +825,7 @@ def generate_testcases_from_dbml(
         # -------------------------------------------------------------------
         # VALIDATION MÉTIER (Business Validations)
         # -------------------------------------------------------------------
-        if manifest:
-            business_validations = load_business_validations_from_manifest(manifest)
-
+        if business_validations:
             for validation_config in business_validations:
                 targets = validation_config.get("targets", [])
 

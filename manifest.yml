@@ -57,7 +57,23 @@ business_validations:
         rule_sql: "{column} NOT IN ('AUTOMOBILE', 'BUILDING', 'MACHINERY', 'HOUSEHOLD', 'FURNITURE')"
         threshold_min: 0.0
         threshold_max: 0.0
-
+        
+# Validation 3 : Valeurs autorisées pour le segment marketing
+  - validation_id: "mktsegment_allowed_values"
+    validation_type: "business_rule"
+    validation_name: "Segment Marketing Valide"
+    description: "Le segment doit être l'un des suivants : AUTOMOBILE, BUILDING, MACHINERY, HOUSEHOLD, FURNITURE"
+    formula: "nb_segments_valides / nb_total_enregistrements"
+  catégorie_test: "intégrité"
+  cas d'usage: [ "marketing","vision produit","gestion des stocks"] 
+    targets:
+      - schema: CUSTOMER_SCHEMA
+        table: CUSTOMER
+        column: C_MKTSEGMENT
+        rule_sql: "{column} NOT IN ('AUTOMOBILE', 'BUILDING', 'MACHINERY', 'HOUSEHOLD', 'FURNITURE')"
+        threshold_min: 0.0
+        threshold_max: 0.0
+ 
   # Validation 4 : Statut de commande valide
   - validation_id: "order_status_valid"
     validation_type: "business_rule"
@@ -157,11 +173,11 @@ business_validations:
         threshold_max: 0.0
 
   # Validation 11 : Région valide
-  - validation_id: "nation_region_integrity"
+  - validation_id: "nation_region_valid"
     validation_type: "business_rule"
-    validation_name: "Nation Region Key Integrity"
-    description: "The Region Key must be a valid identifier between 0 and 4 (Integrity check)"
-    formula: "nb_valid_region_keys / nb_total_records"
+    validation_name: "Nation Region Key Valid"
+    description: "la clé région doit être valide entre 0 and 4"
+    formula: "nb_regions_valides / nb_total_enregistrements"
     targets:
       - schema: CUSTOMER_SCHEMA
         table: NATION

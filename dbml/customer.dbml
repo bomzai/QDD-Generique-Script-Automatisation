@@ -41,24 +41,24 @@ Table CUSTOMER_SCHEMA.ORDERS [headercolor: #34db95] {
 }
 
 Table CUSTOMER_SCHEMA.LINEITEM [headercolor: #34db95] {
-    L_ORDERKEY int [pk, ref: > CUSTOMER_SCHEMA.ORDERS.O_ORDERKEY, note: 'Clé étrangère vers ORDERS, partie de la clé primaire (Intégrité)']
-    L_PARTKEY int [note: 'Identifiant de la pièce commandée']
-    L_SUPPKEY int [note: 'Identifiant du fournisseur']
-    L_LINENUMBER int [pk, note: 'Numéro de ligne unique au sein d une commande (Unicité)']
-    L_QUANTITY decimal(12,2) [note: 'Quantité d articles commandés (Complétude)']
-    L_EXTENDEDPRICE decimal(12,2) [note: 'Prix total de la ligne sans remise ni taxe']
-    L_DISCOUNT decimal(12,2) [note: 'Taux de remise appliqué à la ligne']
-    L_TAX decimal(12,2) [note: 'Taux de taxe appliqué à la ligne']
-    L_RETURNFLAG varchar(1) [note: 'Indicateur de retour de marchandise']
-    L_LINESTATUS varchar(1) [note: 'Statut actuel de la ligne de commande']
-    L_SHIPDATE date [note: 'Date d expédition réelle (Traçabilité)']
-    L_COMMITDATE date [note: 'Date d engagement de livraison (Traçabilité)']
-    L_RECEIPTDATE date [note: 'Date de réception par le client (Traçabilité)']
-    L_SHIPINSTRUCT varchar(25) [note: 'Instructions spécifiques pour l expédition']
-    L_SHIPMODE varchar(10) [note: 'Mode de transport utilisé']
-    L_COMMENT varchar(44) [note: 'Commentaire libre sur la ligne de commande']
+    L_ORDERKEY int [pk, ref: > CUSTOMER_SCHEMA.ORDERS.O_ORDERKEY, note: 'Foreign key to ORDERS, part of the primary key (Integrity)']
+    L_PARTKEY int [note: 'Ordered part identifier']
+    L_SUPPKEY int [note: 'Supplier identifier']
+    L_LINENUMBER int [pk, note: 'Unique line number within an order (Uniqueness)']
+    L_QUANTITY decimal(12,2) [note: 'Quantity of items ordered (Completeness)']
+    L_EXTENDEDPRICE decimal(12,2) [note: 'Total line price without discount or tax']
+    L_DISCOUNT decimal(12,2) [note: 'Discount rate applied to the line']
+    L_TAX decimal(12,2) [note: 'Tax rate applied to the line']
+    L_RETURNFLAG varchar(1) [note: 'Return merchandise indicator']
+    L_LINESTATUS varchar(1) [note: 'Current status of the line order']
+    L_SHIPDATE date [note: 'Actual shipping date (Traceability)']
+    L_COMMITDATE date [note: 'Delivery commitment date (Traceability)']
+    L_RECEIPTDATE date [note: 'Date received by the customer (Traceability)']
+    L_SHIPINSTRUCT varchar(25) [note: 'Specific shipping instructions']
+    L_SHIPMODE varchar(10) [note: 'Shipping mode used']
+    L_COMMENT varchar(44) [note: 'Free text comment on the line order']
 
-    Note: 'Détails des lignes de commandes - Table pivot pour les tests d unicité, traçabilité et intégrité'
+    Note: 'Line order details - Pivot table for uniqueness, traceability, and integrity tests'
 }
 
 Table CUSTOMER_SCHEMA.PART [headercolor: #34db95] {
@@ -103,4 +103,234 @@ Table CUSTOMER_SCHEMA.REGION [headercolor: #34db95] {
   R_COMMENT varchar(152) [note: 'Free text comment']
 
   Note: 'Top-level geographic region data'
+}
+
+
+Table CUSTOMER_SCHEMA.INVENTORY [headercolor: #34db95] {
+    INV_DATE_SK int [note: 'Inventory date surrogate key']
+    INV_ITEM_SK int [note: 'Item surrogate key']
+    INV_WAREHOUSE_SK int [note: 'Warehouse surrogate key']
+    INV_QUANTITY_ON_HAND int [note: 'Quantity on hand']
+
+    Note: 'Product inventory availability'
+}
+
+Table CUSTOMER_SCHEMA.STORE [headercolor: #34db95] {
+    S_STORE_SK int [pk, note: 'Store surrogate key']
+    S_STORE_ID varchar(16) [note: 'Store identifier']
+    S_REC_START_DATE date [note: 'Record start date']
+    S_REC_END_DATE date [note: 'Record end date']
+    S_CLOSED_DATE_SK int [note: 'Store closed date key']
+    S_STORE_NAME varchar(50) [note: 'Store name']
+    S_NUMBER_EMPLOYEES int [note: 'Number of employees']
+    S_FLOOR_SPACE int [note: 'Floor space']
+    S_HOURS varchar(20) [note: 'Operation hours']
+    S_MANAGER varchar(40) [note: 'Store manager']
+    S_MARKET_ID int [note: 'Market identifier']
+    S_GEOGRAPHY_CLASS varchar(100) [note: 'Geography class']
+    S_MARKET_DESC varchar(100) [note: 'Market description']
+    S_MARKET_MANAGER varchar(40) [note: 'Market manager']
+    S_DIVISION_ID int [note: 'Division identifier']
+    S_DIVISION_NAME varchar(50) [note: 'Division name']
+    S_COMPANY_ID int [note: 'Company identifier']
+    S_COMPANY_NAME varchar(50) [note: 'Company name']
+    S_STREET_NUMBER varchar(10) [note: 'Street number']
+    S_STREET_NAME varchar(60) [note: 'Street name']
+    S_STREET_TYPE varchar(15) [note: 'Street type']
+    S_SUITE_NUMBER varchar(10) [note: 'Suite number']
+    S_CITY varchar(60) [note: 'City name']
+    S_COUNTY varchar(30) [note: 'County name']
+    S_STATE varchar(2) [note: 'State']
+    S_ZIP varchar(10) [note: 'Zip code']
+    S_COUNTRY varchar(20) [note: 'Country']
+    S_GMT_OFFSET decimal(5,2) [note: 'GMT offset']
+    S_TAX_PRECENTAGE decimal(5,2) [note: 'Tax percentage']
+
+    Note: 'Retail store details'
+}
+
+Table CUSTOMER_SCHEMA.STORE_RETURNS [headercolor: #34db95] {
+    SR_RETURNED_DATE_SK int [note: 'Returned date key']
+    SR_RETURN_TIME_SK int [note: 'Returned time key']
+    SR_ITEM_SK int [note: 'Item key']
+    SR_CUSTOMER_SK int [note: 'Customer key']
+    SR_CDEMO_SK int [note: 'Customer demographics key']
+    SR_HDEMO_SK int [note: 'Household demographics key']
+    SR_ADDR_SK int [note: 'Address key']
+    SR_STORE_SK int [ref: > CUSTOMER_SCHEMA.STORE.S_STORE_SK, note: 'Store key']
+    SR_REASON_SK int [note: 'Reason key']
+    SR_TICKET_NUMBER int [note: 'Ticket number']
+    SR_RETURN_QUANTITY int [note: 'Return quantity']
+    SR_RETURN_AMT decimal(7,2) [note: 'Return amount']
+    SR_RETURN_TAX decimal(7,2) [note: 'Return tax']
+    SR_RETURN_AMT_INC_TAX decimal(7,2) [note: 'Return amount including tax']
+    SR_FEE decimal(7,2) [note: 'Fee']
+    SR_RETURN_SHIP_COST decimal(7,2) [note: 'Return ship cost']
+    SR_REFUNDED_CASH decimal(7,2) [note: 'Refunded cash']
+    SR_REVERSED_CHARGE decimal(7,2) [note: 'Reversed charge']
+    SR_STORE_CREDIT decimal(7,2) [note: 'Store credit']
+    SR_NET_LOSS decimal(7,2) [note: 'Net loss']
+
+    Note: 'Store returns transactions'
+}
+
+Table CUSTOMER_SCHEMA.STORE_SALES [headercolor: #34db95] {
+    SS_SOLD_DATE_SK int [note: 'Sold date key']
+    SS_SOLD_TIME_SK int [note: 'Sold time key']
+    SS_ITEM_SK int [note: 'Item key']
+    SS_CUSTOMER_SK int [note: 'Customer key']
+    SS_CDEMO_SK int [note: 'Customer demographics key']
+    SS_HDEMO_SK int [note: 'Household demographics key']
+    SS_ADDR_SK int [note: 'Address key']
+    SS_STORE_SK int [ref: > CUSTOMER_SCHEMA.STORE.S_STORE_SK, note: 'Store key']
+    SS_PROMO_SK int [note: 'Promotion key']
+    SS_TICKET_NUMBER int [note: 'Ticket number']
+    SS_QUANTITY int [note: 'Quantity sold']
+    SS_WHOLESALE_COST decimal(7,2) [note: 'Wholesale cost']
+    SS_LIST_PRICE decimal(7,2) [note: 'List price']
+    SS_SALES_PRICE decimal(7,2) [note: 'Sales price']
+    SS_EXT_DISCOUNT_AMT decimal(7,2) [note: 'Extended discount amount']
+    SS_EXT_SALES_PRICE decimal(7,2) [note: 'Extended sales price']
+    SS_EXT_WHOLESALE_COST decimal(7,2) [note: 'Extended wholesale cost']
+    SS_EXT_LIST_PRICE decimal(7,2) [note: 'Extended list price']
+    SS_EXT_TAX decimal(7,2) [note: 'Extended tax']
+    SS_COUPON_AMT decimal(7,2) [note: 'Coupon amount']
+    SS_NET_PAID decimal(7,2) [note: 'Net paid']
+    SS_NET_PAID_INC_TAX decimal(7,2) [note: 'Net paid including tax']
+    SS_NET_PROFIT decimal(7,2) [note: 'Net profit']
+
+    Note: 'Store sales transactions'
+}
+
+Table CUSTOMER_SCHEMA.TIME_DIM [headercolor: #34db95] {
+    T_TIME_SK int [pk, note: 'Time surrogate key']
+    T_TIME_ID varchar(16) [note: 'Time identifier']
+    T_TIME int [note: 'Time value']
+    T_HOUR int [note: 'Hour']
+    T_MINUTE int [note: 'Minute']
+    T_SECOND int [note: 'Second']
+    T_AM_PM varchar(2) [note: 'AM/PM indicator']
+    T_SHIFT varchar(20) [note: 'Work shift']
+    T_SUB_SHIFT varchar(20) [note: 'Sub shift']
+    T_MEAL_TIME varchar(20) [note: 'Meal time']
+
+    Note: 'Time dimension'
+}
+
+Table CUSTOMER_SCHEMA.WEB_PAGE [headercolor: #34db95] {
+    WP_WEB_PAGE_SK int [pk, note: 'Web page surrogate key']
+    WP_WEB_PAGE_ID varchar(16) [note: 'Web page identifier']
+    WP_REC_START_DATE date [note: 'Record start date']
+    WP_REC_END_DATE date [note: 'Record end date']
+    WP_CREATION_DATE_SK int [note: 'Creation date key']
+    WP_ACCESS_DATE_SK int [note: 'Access date key']
+    WP_AUTOGEN_FLAG varchar(1) [note: 'Auto-generated flag']
+    WP_CUSTOMER_SK int [note: 'Customer key']
+    WP_URL varchar(100) [note: 'Page URL']
+    WP_TYPE varchar(50) [note: 'Page type']
+    WP_CHAR_COUNT int [note: 'Character count']
+    WP_LINK_COUNT int [note: 'Link count']
+    WP_IMAGE_COUNT int [note: 'Image count']
+    WP_MAX_AD_COUNT int [note: 'Max ad count']
+
+    Note: 'Web page details'
+}
+
+Table CUSTOMER_SCHEMA.WEB_SITE [headercolor: #34db95] {
+    WEB_SITE_SK int [pk, note: 'Web site surrogate key']
+    WEB_SITE_ID varchar(16) [note: 'Web site identifier']
+    WEB_REC_START_DATE date [note: 'Record start date']
+    WEB_REC_END_DATE date [note: 'Record end date']
+    WEB_NAME varchar(50) [note: 'Web site name']
+    WEB_OPEN_DATE_SK int [note: 'Open date key']
+    WEB_CLOSE_DATE_SK int [note: 'Close date key']
+    WEB_CLASS varchar(50) [note: 'Site class']
+    WEB_MANAGER varchar(40) [note: 'Site manager']
+    WEB_MKT_ID int [note: 'Market identifier']
+    WEB_MKT_CLASS varchar(50) [note: 'Market class']
+    WEB_MKT_DESC varchar(100) [note: 'Market description']
+    WEB_MARKET_MANAGER varchar(40) [note: 'Market manager']
+    WEB_COMPANY_ID int [note: 'Company identifier']
+    WEB_COMPANY_NAME varchar(50) [note: 'Company name']
+    WEB_STREET_NUMBER varchar(10) [note: 'Street number']
+    WEB_STREET_NAME varchar(60) [note: 'Street name']
+    WEB_STREET_TYPE varchar(15) [note: 'Street type']
+    WEB_SUITE_NUMBER varchar(10) [note: 'Suite number']
+    WEB_CITY varchar(60) [note: 'City']
+    WEB_COUNTY varchar(30) [note: 'County']
+    WEB_STATE varchar(2) [note: 'State']
+    WEB_ZIP varchar(10) [note: 'Zip code']
+    WEB_COUNTRY varchar(20) [note: 'Country']
+    WEB_GMT_OFFSET decimal(5,2) [note: 'GMT offset']
+    WEB_TAX_PERCENTAGE decimal(5,2) [note: 'Tax percentage']
+
+    Note: 'Web site details'
+}
+
+Table CUSTOMER_SCHEMA.WEB_RETURNS [headercolor: #34db95] {
+    WR_RETURNED_DATE_SK int [note: 'Returned date key']
+    WR_RETURNED_TIME_SK int [note: 'Returned time key']
+    WR_ITEM_SK int [note: 'Item key']
+    WR_REFUNDED_CUSTOMER_SK int [note: 'Refunded customer key']
+    WR_REFUNDED_CDEMO_SK int [note: 'Refunded customer demo key']
+    WR_REFUNDED_HDEMO_SK int [note: 'Refunded household demo key']
+    WR_REFUNDED_ADDR_SK int [note: 'Refunded address key']
+    WR_RETURNING_CUSTOMER_SK int [note: 'Returning customer key']
+    WR_RETURNING_CDEMO_SK int [note: 'Returning customer demo key']
+    WR_RETURNING_HDEMO_SK int [note: 'Returning household demo key']
+    WR_RETURNING_ADDR_SK int [note: 'Returning address key']
+    WR_WEB_PAGE_SK int [ref: > CUSTOMER_SCHEMA.WEB_PAGE.WP_WEB_PAGE_SK, note: 'Web page key']
+    WR_REASON_SK int [note: 'Reason key']
+    WR_ORDER_NUMBER int [note: 'Order number']
+    WR_RETURN_QUANTITY int [note: 'Return quantity']
+    WR_RETURN_AMT decimal(7,2) [note: 'Return amount']
+    WR_RETURN_TAX decimal(7,2) [note: 'Return tax']
+    WR_RETURN_AMT_INC_TAX decimal(7,2) [note: 'Return amount inc tax']
+    WR_FEE decimal(7,2) [note: 'Fee']
+    WR_RETURN_SHIP_COST decimal(7,2) [note: 'Return ship cost']
+    WR_REFUNDED_CASH decimal(7,2) [note: 'Refunded cash']
+    WR_REVERSED_CHARGE decimal(7,2) [note: 'Reversed charge']
+    WR_ACCOUNT_CREDIT decimal(7,2) [note: 'Account credit']
+    WR_NET_LOSS decimal(7,2) [note: 'Net loss']
+
+    Note: 'Web returns transactions'
+}
+
+Table CUSTOMER_SCHEMA.WEB_SALES [headercolor: #34db95] {
+    WS_SOLD_DATE_SK int [note: 'Sold date key']
+    WS_SOLD_TIME_SK int [note: 'Sold time key']
+    WS_SHIP_DATE_SK int [note: 'Ship date key']
+    WS_ITEM_SK int [note: 'Item key']
+    WS_BILL_CUSTOMER_SK int [note: 'Bill customer key']
+    WS_BILL_CDEMO_SK int [note: 'Bill customer demo key']
+    WS_BILL_HDEMO_SK int [note: 'Bill household demo key']
+    WS_BILL_ADDR_SK int [note: 'Bill address key']
+    WS_SHIP_CUSTOMER_SK int [note: 'Ship customer key']
+    WS_SHIP_CDEMO_SK int [note: 'Ship customer demo key']
+    WS_SHIP_HDEMO_SK int [note: 'Ship household demo key']
+    WS_SHIP_ADDR_SK int [note: 'Ship address key']
+    WS_WEB_PAGE_SK int [ref: > CUSTOMER_SCHEMA.WEB_PAGE.WP_WEB_PAGE_SK, note: 'Web page key']
+    WS_WEB_SITE_SK int [ref: > CUSTOMER_SCHEMA.WEB_SITE.WEB_SITE_SK, note: 'Web site key']
+    WS_SHIP_MODE_SK int [note: 'Ship mode key']
+    WS_WAREHOUSE_SK int [note: 'Warehouse key']
+    WS_PROMO_SK int [note: 'Promotion key']
+    WS_ORDER_NUMBER int [note: 'Order number']
+    WS_QUANTITY int [note: 'Quantity']
+    WS_WHOLESALE_COST decimal(7,2) [note: 'Wholesale cost']
+    WS_LIST_PRICE decimal(7,2) [note: 'List price']
+    WS_SALES_PRICE decimal(7,2) [note: 'Sales price']
+    WS_EXT_DISCOUNT_AMT decimal(7,2) [note: 'Ext discount amount']
+    WS_EXT_SALES_PRICE decimal(7,2) [note: 'Ext sales price']
+    WS_EXT_WHOLESALE_COST decimal(7,2) [note: 'Ext wholesale cost']
+    WS_EXT_LIST_PRICE decimal(7,2) [note: 'Ext list price']
+    WS_EXT_TAX decimal(7,2) [note: 'Ext tax']
+    WS_COUPON_AMT decimal(7,2) [note: 'Coupon amount']
+    WS_EXT_SHIP_COST decimal(7,2) [note: 'Ext ship cost']
+    WS_NET_PAID decimal(7,2) [note: 'Net paid']
+    WS_NET_PAID_INC_TAX decimal(7,2) [note: 'Net paid inc tax']
+    WS_NET_PAID_INC_SHIP decimal(7,2) [note: 'Net paid inc ship']
+    WS_NET_PAID_INC_SHIP_TAX decimal(7,2) [note: 'Net paid inc ship tax']
+    WS_NET_PROFIT decimal(7,2) [note: 'Net profit']
+
+    Note: 'Web sales transactions'
 }
