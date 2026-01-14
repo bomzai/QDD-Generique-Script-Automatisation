@@ -14,6 +14,43 @@ defaults_testcases_values:
   tst_seuil_borne_inferieur: 0.0
   tst_seuil_borne_superieur: 0.0
 
+# Mapping des use_cases pour les tests auto-générés (complétude, unicité, intégrité, traçabilité)
+use_case_mappings:
+  default: ["general"]
+  by_table:
+    # Tables CRM et clients
+    CUSTOMER_SCHEMA.CUSTOMER: ["crm", "marketing", "finance", "reporting_reglementaire"]
+
+    # Tables commandes et ventes B2B
+    CUSTOMER_SCHEMA.ORDERS: ["ventes", "finance", "reporting_reglementaire", "pilotage"]
+    CUSTOMER_SCHEMA.LINEITEM: ["ventes", "logistique", "finance", "pilotage"]
+
+    # Tables supply chain et achats
+    CUSTOMER_SCHEMA.PART: ["supply_chain", "catalogue_produit", "achats", "qualite"]
+    CUSTOMER_SCHEMA.SUPPLIER: ["supply_chain", "achats", "compliance", "finance"]
+    CUSTOMER_SCHEMA.PARTSUPP: ["supply_chain", "inventaire", "achats", "pilotage"]
+
+    # Tables données de référence
+    CUSTOMER_SCHEMA.NATION: ["referentiel", "compliance", "reporting_reglementaire"]
+    CUSTOMER_SCHEMA.REGION: ["referentiel", "pilotage"]
+
+    # Tables gestion des stocks
+    CUSTOMER_SCHEMA.INVENTORY: ["inventaire", "supply_chain", "pilotage", "operations"]
+
+    # Tables retail et magasins physiques
+    CUSTOMER_SCHEMA.STORE: ["retail", "operations", "ressources_humaines", "pilotage"]
+    CUSTOMER_SCHEMA.STORE_SALES: ["retail", "ventes", "finance", "pilotage", "reporting_reglementaire"]
+    CUSTOMER_SCHEMA.STORE_RETURNS: ["retail", "service_client", "qualite", "finance", "pilotage"]
+
+    # Tables e-commerce et digital
+    CUSTOMER_SCHEMA.WEB_SITE: ["ecommerce", "marketing_digital", "operations"]
+    CUSTOMER_SCHEMA.WEB_PAGE: ["ecommerce", "marketing_digital", "mesure_audience", "ux_design"]
+    CUSTOMER_SCHEMA.WEB_SALES: ["ecommerce", "ventes", "finance", "pilotage", "reporting_reglementaire"]
+    CUSTOMER_SCHEMA.WEB_RETURNS: ["ecommerce", "service_client", "qualite", "finance", "pilotage"]
+
+    # Tables dimensions temporelles
+    CUSTOMER_SCHEMA.TIME_DIM: ["referentiel", "pilotage", "mesure_audience"]
+
 # Validations métier personnalisées
 business_validations:
   # Validation 1 : Solde de compte positif
@@ -22,6 +59,8 @@ business_validations:
     validation_name: "Solde Compte Positif"
     description: "Le solde du compte doit être >= 0"
     formula: "nb_valeurs_positive / nb_total_enregistrements"
+    met_type: "VAL"
+    use_cases: ["finance", "reporting_reglementaire"]
     targets:
       - schema: CUSTOMER_SCHEMA
         table: CUSTOMER
@@ -36,6 +75,8 @@ business_validations:
     validation_name: "Format Téléphone"
     description: "Le téléphone doit contenir uniquement chiffres, tirets, +, parenthèses et espaces"
     formula: "nb_numeros_valides / nb_total_enregistrements"
+    met_type: "CFM"
+    use_cases: ["crm", "qualite_donnees"]
     targets:
       - schema: CUSTOMER_SCHEMA
         table: CUSTOMER
@@ -50,6 +91,8 @@ business_validations:
     validation_name: "Segment Marketing Valide"
     description: "Le segment doit être l'un des suivants : AUTOMOBILE, BUILDING, MACHINERY, HOUSEHOLD, FURNITURE"
     formula: "nb_segments_valides / nb_total_enregistrements"
+    met_type: "CFM"
+    use_cases: ["marketing", "segmentation"]
     targets:
       - schema: CUSTOMER_SCHEMA
         table: CUSTOMER
@@ -58,12 +101,15 @@ business_validations:
         threshold_min: 0.0
         threshold_max: 0.0
 
+
   # Validation 4 : Statut de commande valide
   - validation_id: "order_status_valid"
     validation_type: "business_rule"
     validation_name: "Statut Commande Valide"
     description: "Le statut doit être O (Open), F (Fully processed), ou P (Partially shipped)"
     formula: "nb_statuts_valides / nb_total_enregistrements"
+    met_type: "CFM"
+    use_cases: ["ventes", "suivi_commandes"]
     targets:
       - schema: CUSTOMER_SCHEMA
         table: ORDERS
@@ -78,6 +124,8 @@ business_validations:
     validation_name: "Prix Commande Positif"
     description: "Le prix total d'une commande doit être strictement positif (> 0)"
     formula: "nb_prix_valides / nb_total_enregistrements"
+    met_type: "VAL"
+    use_cases: ["finance", "ventes"]
     targets:
       - schema: CUSTOMER_SCHEMA
         table: ORDERS
@@ -92,6 +140,8 @@ business_validations:
     validation_name: "Remise Valide"
     description: "La remise doit être entre 0 et 1 (représentant 0% à 100%)"
     formula: "nb_remises_valides / nb_total_enregistrements"
+    met_type: "VAL"
+    use_cases: ["ventes", "pricing"]
     targets:
       - schema: CUSTOMER_SCHEMA
         table: LINEITEM
@@ -106,6 +156,8 @@ business_validations:
     validation_name: "Taxe Valide"
     description: "La taxe doit être entre 0 et 1 (représentant 0% à 100%)"
     formula: "nb_taxes_valides / nb_total_enregistrements"
+    met_type: "VAL"
+    use_cases: ["finance", "comptabilite"]
     targets:
       - schema: CUSTOMER_SCHEMA
         table: LINEITEM
@@ -120,6 +172,8 @@ business_validations:
     validation_name: "Quantité Positive"
     description: "La quantité commandée doit être strictement positive (> 0)"
     formula: "nb_quantites_valides / nb_total_enregistrements"
+    met_type: "VAL"
+    use_cases: ["logistique", "ventes"]
     targets:
       - schema: CUSTOMER_SCHEMA
         table: LINEITEM
@@ -134,6 +188,8 @@ business_validations:
     validation_name: "Dates Expédition Cohérentes"
     description: "La date d'expédition doit être <= date de réception"
     formula: "nb_dates_coherentes / nb_total_enregistrements"
+    met_type: "COH"
+    use_cases: ["logistique", "qualite_donnees"]
     targets:
       - schema: CUSTOMER_SCHEMA
         table: LINEITEM
@@ -148,6 +204,8 @@ business_validations:
     validation_name: "Stock Non Négatif"
     description: "La quantité disponible en stock doit être >= 0"
     formula: "nb_stocks_valides / nb_total_enregistrements"
+    met_type: "VAL"
+    use_cases: ["supply_chain", "inventaire"]
     targets:
       - schema: CUSTOMER_SCHEMA
         table: PARTSUPP
@@ -162,6 +220,8 @@ business_validations:
     validation_name: "Nation Region Key Valid"
     description: "la clé région doit être valide entre 0 and 4"
     formula: "nb_regions_valides / nb_total_enregistrements"
+    met_type: "CFM"
+    use_cases: ["referentiel"]
     targets:
       - schema: CUSTOMER_SCHEMA
         table: NATION
@@ -176,6 +236,8 @@ business_validations:
     validation_name: "Priorité Commande Valide"
     description: "La priorité doit être l'une des valeurs standards TPC-H : 1-URGENT, 2-HIGH, 3-MEDIUM, 4-NOT SPECIFIED, 5-LOW"
     formula: "nb_priorites_valides / nb_total_enregistrements"
+    met_type: "CFM"
+    use_cases: ["ventes", "logistique"]
     targets:
       - schema: CUSTOMER_SCHEMA
         table: ORDERS

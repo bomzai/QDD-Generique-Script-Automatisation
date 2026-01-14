@@ -166,6 +166,90 @@ def apply_testcase_defaults_from_manifest(manifest: Dict[str, Any]) -> None:
             )
 
 
+def validate_use_cases(use_cases: Optional[List[str]]) -> List[str]:
+    """
+    Valide et normalise la liste use_cases.
+    Retourne liste normalisée ou vide si invalide.
+    """
+    if not use_cases:
+        return []
+
+    if not isinstance(use_cases, list):
+        logger.warning(f"use_cases doit être une liste, reçu {type(use_cases)}")
+        return []
+
+    if len(use_cases) > 10:
+        logger.warning(f"Maximum 10 use_cases autorisés, reçu {len(use_cases)}, troncature")
+        use_cases = use_cases[:10]
+
+    pattern = re.compile(r'^[a-z0-9_]+$')
+    normalized = []
+
+    for uc in use_cases:
+        uc = str(uc).strip().lower()
+        if len(uc) > 50:
+            logger.warning(f"Use case '{uc}' dépasse 50 caractères, ignoré")
+            continue
+        if not pattern.match(uc):
+            logger.warning(f"Use case '{uc}' contient caractères invalides, ignoré")
+            continue
+        if uc not in normalized:  # Déduplication
+            normalized.append(uc)
+
+    return normalized
+
+
+def format_use_cases_for_storage(use_cases: List[str]) -> Optional[str]:
+    """
+    Formate use_cases en chaîne séparée par virgules pour Snowflake.
+    Retourne None si liste vide.
+    """
+    if not use_cases:
+        return None
+    return ",".join(use_cases)
+
+
+def load_use_case_mappings_from_manifest(manifest: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Charge la section use_case_mappings du manifest.yml.
+    Retourne dict avec clés 'default' et 'by_table'.
+    """
+    mappings = manifest.get("use_case_mappings") or {}
+
+    default = validate_use_cases(mappings.get("default"))
+    by_table = {}
+
+    for table, uc_list in (mappings.get("by_table") or {}).items():
+        table_normalized = table.strip().upper()
+        by_table[table_normalized] = validate_use_cases(uc_list)
+
+    return {
+        "default": default,
+        "by_table": by_table
+    }
+
+
+def get_use_cases_for_table(
+    table_name: str,
+    use_case_mappings: Dict[str, Any]
+) -> List[str]:
+    """
+    Retourne use_cases pour une table donnée depuis mappings.
+    Fallback vers default si table non trouvée.
+    """
+    table_normalized = table_name.strip().upper()
+
+    by_table = use_case_mappings.get("by_table", {})
+    if table_normalized in by_table:
+        return by_table[table_normalized]
+
+    default = use_case_mappings.get("default", [])
+    if default:
+        logger.info(f"Table {table_name} pas dans use_case_mappings, utilisation default: {default}")
+
+    return default
+
+
 def load_dbml(dbml_path: str) -> PyDBML:
     """
     Charge le fichier DBML.
@@ -459,9 +543,10 @@ def get_or_create_validation_metric(
     Permet des métriques pilotées par manifest sans INSERT manuel.
     """
     validation_id = validation_config.get("validation_id", "")
-    validation_name = validation_config.get("validation_name", "")
+    met_nom = validation_config.get("validation_name", "")
     description = validation_config.get("description", "")
-    formula = validation_config.get("formula", "")
+    met_formule = validation_config.get("formula", "")
+    met_type = validation_config.get("met_type", "VAL_METIER")  
 
     # ID de métrique stable
     met_idf = f"MET_VAL_{validation_id.upper()}"
@@ -495,12 +580,6 @@ def get_or_create_validation_metric(
             )
             VALUES (%s, %s, %s, %s, %s, CURRENT_TIMESTAMP())
         """
-
-        met_nom = f"Validation Métier - {validation_name}"
-        met_type = "VAL_METIER"
-
-        # Utiliser la formule si fournie, sinon NULL
-        met_formule = formula if formula else None
 
         cur.execute(sql_insert, (met_idf, met_nom, met_type, description, met_formule))
         conn.commit()
@@ -584,6 +663,11 @@ def generate_testcases_from_dbml(
     if manifest:
         business_validations = load_business_validations_from_manifest(manifest)
 
+    # Charger use_case_mappings une fois pour tous tests auto-générés
+    use_case_mappings = load_use_case_mappings_from_manifest(manifest or {})
+    logger.info(f"Use case mappings chargés: default={use_case_mappings['default']}, "
+               f"tables={len(use_case_mappings['by_table'])}")
+
     for table in dbml.tables:
         if not is_ref_table(table):
             continue
@@ -646,6 +730,9 @@ def generate_testcases_from_dbml(
                         "TST_VALIDE_JUSQUA": valid_jusqua,
                         "TST_ID_DBML_VERSION": dbml_version_id,
                         "TST_KIND": "completude",
+                        "TST_USE_CASES": format_use_cases_for_storage(
+                            get_use_cases_for_table(table_name, use_case_mappings)
+                        ),
                     }
                 )
 
@@ -698,6 +785,9 @@ def generate_testcases_from_dbml(
                     "TST_VALIDE_JUSQUA": valid_jusqua,
                     "TST_ID_DBML_VERSION": dbml_version_id,
                     "TST_KIND": "unicite",
+                    "TST_USE_CASES": format_use_cases_for_storage(
+                        get_use_cases_for_table(table_name, use_case_mappings)
+                    ),
                 }
             )
 
@@ -766,6 +856,9 @@ def generate_testcases_from_dbml(
                             "TST_VALIDE_JUSQUA": valid_jusqua,
                             "TST_ID_DBML_VERSION": dbml_version_id,
                             "TST_KIND": "integrite",
+                            "TST_USE_CASES": format_use_cases_for_storage(
+                                get_use_cases_for_table(table_name, use_case_mappings)
+                            ),
                         }
                     )
 
@@ -820,6 +913,9 @@ def generate_testcases_from_dbml(
                         "TST_VALIDE_JUSQUA": valid_jusqua,
                         "TST_ID_DBML_VERSION": dbml_version_id,
                         "TST_KIND": "tracabilite",
+                        "TST_USE_CASES": format_use_cases_for_storage(
+                            get_use_cases_for_table(table_name, use_case_mappings)
+                        ),
                     }
                 )
         # -------------------------------------------------------------------
@@ -883,6 +979,15 @@ def generate_testcases_from_dbml(
                     # Stocker rule_sql dans description pour Script 2
                     desc_with_rule = f"{desc} - RULE_SQL: {rule_sql}"
 
+                    # Extraire use_cases de validation_config
+                    validation_use_cases = validate_use_cases(
+                        validation_config.get("use_cases", [])
+                    )
+
+                    # Si pas de use_cases spécifié pour validation métier, utiliser default table
+                    if not validation_use_cases:
+                        validation_use_cases = get_use_cases_for_table(table_name, use_case_mappings)
+
                     testcases.append({
                         "TST_IDF": tst_idf,
                         "TST_NOM_TEST": tst_nom,
@@ -902,6 +1007,7 @@ def generate_testcases_from_dbml(
                         "TST_VALIDE_JUSQUA": valid_jusqua,
                         "TST_ID_DBML_VERSION": dbml_version_id,
                         "TST_KIND": "validation_metier",
+                        "TST_USE_CASES": format_use_cases_for_storage(validation_use_cases),
                     })
     logger.info(f"{len(testcases)} testcases générés.")
     return testcases
@@ -966,7 +1072,8 @@ INSERT INTO {TABLE_TESTCASE} (
     TST_DATE_CREATION,
     TST_VALIDE_DE,
     TST_VALIDE_JUSQUA,
-    TST_ID_DBML_VERSION
+    TST_ID_DBML_VERSION,
+    TST_USE_CASES
 )
 SELECT
     {sql_literal(tc["TST_IDF"])},
@@ -985,7 +1092,8 @@ SELECT
     {sql_literal(tc["TST_DATE_CREATION"])},
     {sql_literal(tc["TST_VALIDE_DE"])},
     {sql_literal(tc["TST_VALIDE_JUSQUA"])},
-    {sql_literal(tc["TST_ID_DBML_VERSION"])}
+    {sql_literal(tc["TST_ID_DBML_VERSION"])},
+    {sql_literal(tc.get("TST_USE_CASES"))}
 WHERE NOT EXISTS (
     SELECT 1
     FROM {TABLE_TESTCASE}
