@@ -56,10 +56,10 @@ business_validations:
   # Validation 1 : Solde de compte positif
   - validation_id: "positive_balance"
     validation_type: "business_rule"
-    validation_name: "Solde Compte Positif"
+    validation_name: "Validation Solde Compte Positif"
     description: "Le solde du compte doit être >= 0"
     formula: "nb_valeurs_positive / nb_total_enregistrements"
-    met_type: "VAL"
+    met_type: "EXA"  # Exactitude
     use_cases: ["finance", "reporting_reglementaire"]
     targets:
       - schema: CUSTOMER_SCHEMA
@@ -72,10 +72,10 @@ business_validations:
   # Validation 2 : Format téléphone valide
   - validation_id: "phone_format"
     validation_type: "business_rule"
-    validation_name: "Format Téléphone"
+    validation_name: "Validation Format Téléphone"
     description: "Le téléphone doit contenir uniquement chiffres, tirets, +, parenthèses et espaces"
     formula: "nb_numeros_valides / nb_total_enregistrements"
-    met_type: "CFM"
+    met_type: "EXA"  # Exactitude
     use_cases: ["crm", "qualite_donnees"]
     targets:
       - schema: CUSTOMER_SCHEMA
@@ -88,10 +88,10 @@ business_validations:
 # Validation 3 : Valeurs autorisées pour le segment marketing
   - validation_id: "mktsegment_allowed_values"
     validation_type: "business_rule"
-    validation_name: "Segment Marketing Valide"
+    validation_name: "Validation Segment Marketing"
     description: "Le segment doit être l'un des suivants : AUTOMOBILE, BUILDING, MACHINERY, HOUSEHOLD, FURNITURE"
     formula: "nb_segments_valides / nb_total_enregistrements"
-    met_type: "CFM"
+    met_type: "EXA"  # Exactitude
     use_cases: ["marketing", "segmentation"]
     targets:
       - schema: CUSTOMER_SCHEMA
@@ -105,10 +105,10 @@ business_validations:
   # Validation 4 : Statut de commande valide
   - validation_id: "order_status_valid"
     validation_type: "business_rule"
-    validation_name: "Statut Commande Valide"
+    validation_name: "Validation Statut Commande"
     description: "Le statut doit être O (Open), F (Fully processed), ou P (Partially shipped)"
     formula: "nb_statuts_valides / nb_total_enregistrements"
-    met_type: "CFM"
+    met_type: "EXA"  # Exactitude
     use_cases: ["ventes", "suivi_commandes"]
     targets:
       - schema: CUSTOMER_SCHEMA
@@ -121,10 +121,10 @@ business_validations:
   # Validation 5 : Prix total commande cohérent
   - validation_id: "order_price_positive"
     validation_type: "business_rule"
-    validation_name: "Prix Commande Positif"
+    validation_name: "Validation Prix Commande Positif"
     description: "Le prix total d'une commande doit être strictement positif (> 0)"
     formula: "nb_prix_valides / nb_total_enregistrements"
-    met_type: "VAL"
+    met_type: "EXA"  # Exactitude
     use_cases: ["finance", "ventes"]
     targets:
       - schema: CUSTOMER_SCHEMA
@@ -137,10 +137,10 @@ business_validations:
   # Validation 6 : Remise dans la plage acceptable
   - validation_id: "discount_range_valid"
     validation_type: "business_rule"
-    validation_name: "Remise Valide"
+    validation_name: "Validation Remise Valide"
     description: "La remise doit être entre 0 et 1 (représentant 0% à 100%)"
     formula: "nb_remises_valides / nb_total_enregistrements"
-    met_type: "VAL"
+    met_type: "EXA"  # Exactitude
     use_cases: ["ventes", "pricing"]
     targets:
       - schema: CUSTOMER_SCHEMA
@@ -153,10 +153,10 @@ business_validations:
   # Validation 7 : Taxe dans la plage acceptable
   - validation_id: "tax_range_valid"
     validation_type: "business_rule"
-    validation_name: "Taxe Valide"
+    validation_name: "Validation Taxe Valide"
     description: "La taxe doit être entre 0 et 1 (représentant 0% à 100%)"
     formula: "nb_taxes_valides / nb_total_enregistrements"
-    met_type: "VAL"
+    met_type: "EXA"  # Exactitude
     use_cases: ["finance", "comptabilite"]
     targets:
       - schema: CUSTOMER_SCHEMA
@@ -169,10 +169,10 @@ business_validations:
   # Validation 8 : Quantité commandée positive
   - validation_id: "quantity_positive"
     validation_type: "business_rule"
-    validation_name: "Quantité Positive"
+    validation_name: "Validation Quantité Positive"
     description: "La quantité commandée doit être strictement positive (> 0)"
     formula: "nb_quantites_valides / nb_total_enregistrements"
-    met_type: "VAL"
+    met_type: "EXA"  # Exactitude
     use_cases: ["logistique", "ventes"]
     targets:
       - schema: CUSTOMER_SCHEMA
@@ -185,10 +185,10 @@ business_validations:
   # Validation 9 : Cohérence des dates d'expédition
   - validation_id: "shipdate_coherence"
     validation_type: "business_rule"
-    validation_name: "Dates Expédition Cohérentes"
+    validation_name: "Validation Dates Expédition Cohérentes"
     description: "La date d'expédition doit être <= date de réception"
     formula: "nb_dates_coherentes / nb_total_enregistrements"
-    met_type: "COH"
+    met_type: "COH"  # Coherence
     use_cases: ["logistique", "qualite_donnees"]
     targets:
       - schema: CUSTOMER_SCHEMA
@@ -201,10 +201,10 @@ business_validations:
   # Validation 10 : Stock disponible non négatif
   - validation_id: "available_qty_nonnegative"
     validation_type: "business_rule"
-    validation_name: "Stock Non Négatif"
+    validation_name: "Validation Stock Non Négatif"
     description: "La quantité disponible en stock doit être >= 0"
     formula: "nb_stocks_valides / nb_total_enregistrements"
-    met_type: "VAL"
+    met_type: "EXA"  # Exactitude
     use_cases: ["supply_chain", "inventaire"]
     targets:
       - schema: CUSTOMER_SCHEMA
@@ -217,10 +217,10 @@ business_validations:
   # Validation 11 : Région valide
   - validation_id: "nation_region_valid"
     validation_type: "business_rule"
-    validation_name: "Nation Region Key Valid"
+    validation_name: "Validation Clé Région"
     description: "la clé région doit être valide entre 0 and 4"
     formula: "nb_regions_valides / nb_total_enregistrements"
-    met_type: "CFM"
+    met_type: "EXA"  # Exactitude
     use_cases: ["referentiel"]
     targets:
       - schema: CUSTOMER_SCHEMA
@@ -233,15 +233,63 @@ business_validations:
   # Validation 12 : Priorité de commande valide
   - validation_id: "order_priority_valid"
     validation_type: "business_rule"
-    validation_name: "Priorité Commande Valide"
+    validation_name: "Validation Priorité Commande"
     description: "La priorité doit être l'une des valeurs standards TPC-H : 1-URGENT, 2-HIGH, 3-MEDIUM, 4-NOT SPECIFIED, 5-LOW"
     formula: "nb_priorites_valides / nb_total_enregistrements"
-    met_type: "CFM"
+    met_type: "EXA"  # Exactitude
     use_cases: ["ventes", "logistique"]
     targets:
       - schema: CUSTOMER_SCHEMA
         table: ORDERS
         column: O_ORDERPRIORITY
         rule_sql: "{column} NOT IN ('1-URGENT', '2-HIGH', '3-MEDIUM', '4-NOT SPECIFIED', '5-LOW')"
+        threshold_min: 0.0
+        threshold_max: 0.0
+
+  # Validation 13 : Actualisation des commandes (données récentes)
+  - validation_id: "order_date_freshness"
+    validation_type: "business_rule"
+    validation_name: "Validation Actualisation Commandes"
+    description: "Les commandes doivent avoir une date de commande dans les 50 dernières années pour être considérées comme actuelles"
+    formula: "nb_commandes_actuelles / nb_total_enregistrements"
+    met_type: "ACT"  # Actualisation
+    use_cases: ["pilotage", "reporting_reglementaire", "ventes"]
+    targets:
+      - schema: CUSTOMER_SCHEMA
+        table: ORDERS
+        column: O_ORDERDATE
+        rule_sql: "{column} < DATEADD(YEAR, -50, CURRENT_DATE())"
+        threshold_min: 0.0
+        threshold_max: 0.0
+
+  # Validation 14 : Pertinence - Client référencé dans le bon référentiel Nation
+  - validation_id: "customer_nation_pertinence"
+    validation_type: "business_rule"
+    validation_name: "Validation Pertinence Référentiel Nation"
+    description: "Le client doit être rattaché à une nation existante dans le référentiel NATION pour garantir la pertinence des données géographiques"
+    formula: "nb_clients_nation_valide / nb_total_enregistrements"
+    met_type: "PER"  # Pertinence
+    use_cases: ["referentiel", "compliance", "reporting_reglementaire"]
+    targets:
+      - schema: CUSTOMER_SCHEMA
+        table: CUSTOMER
+        column: C_NATIONKEY
+        rule_sql: "{column} NOT IN (SELECT N_NATIONKEY FROM CUSTOMER_SCHEMA.NATION)"
+        threshold_min: 0.0
+        threshold_max: 0.0
+
+  # Validation 15 : Traçabilité - Présence des métadonnées d'audit sur les commandes
+  - validation_id: "order_audit_traceability"
+    validation_type: "business_rule"
+    validation_name: "Validation Audit Commandes"
+    description: "Les commandes doivent avoir un commentaire de traçabilité (O_COMMENT) renseigné pour assurer l'auditabilité des transactions"
+    formula: "nb_commandes_tracables / nb_total_enregistrements"
+    met_type: "TRA"  # Traçabilité
+    use_cases: ["audit", "compliance", "reporting_reglementaire"]
+    targets:
+      - schema: CUSTOMER_SCHEMA
+        table: ORDERS
+        column: O_COMMENT
+        rule_sql: "{column} IS NULL OR TRIM({column}) = ''"
         threshold_min: 0.0
         threshold_max: 0.0

@@ -549,7 +549,7 @@ def get_or_create_validation_metric(
     met_type = validation_config.get("met_type", "VAL_METIER")  
 
     # ID de métrique stable
-    met_idf = f"MET_VAL_{validation_id.upper()}"
+    met_idf = f"MET_VALIDATION_{validation_id.upper()}"
 
     cur = conn.cursor()
     try:

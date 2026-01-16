@@ -172,24 +172,24 @@ def classify_metric(metric_name: str, critere: str) -> str:
     crit_upper = (critere or "").strip().upper()
 
     # Complétude (EXH)
-    if "compl" in nom_lower or crit_upper == "EXH":
+    if "compl" in nom_lower: #or crit_upper == "EXH":
         return "completude"
 
     # Unicité
-    if "unic" in nom_lower or crit_upper in ("UNI", "UNQ"):
+    if "unic" in nom_lower: #or crit_upper in ("UNI", "UNQ"):
         return "unicite"
 
     # Traçabilité (description de colonnes)
     # - critère QDD = 'TRA'
-    if "traç" in nom_lower or crit_upper == "TRA":
+    if "traç" in nom_lower: # or crit_upper == "TRA":
         return "tracabilite"
     
     # Intégrité de référentiel / FK
-    if "intégr" in nom_lower or "integr" in nom_lower or crit_upper in ("INT", "FK", "REF"):
+    if "intégr" in nom_lower: #or "integr" in nom_lower or crit_upper in ("INT", "FK", "REF"):
         return "integrite"
     
     # Validation Métier
-    if "validation" in nom_lower or crit_upper in ("VAL", "VAL_METIER", "VAL_FORMAT"):
+    if "validation" in nom_lower: #or crit_upper in ("VAL", "VAL_METIER", "VAL_FORMAT"):
         return "validation_metier"
     
     return "autre"
